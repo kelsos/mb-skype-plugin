@@ -60,6 +60,10 @@ namespace MusicBeePlugin
 			}
 		}
 
+		/// <summary>
+		/// Reads the values of the boolean variables and creates the Now Playing String to be Displayed
+		/// </summary>
+		/// <returns>the now playing string</returns>
 		private string getNowPlayingString()
 		{
 			if (displayNote == false && displayNowPlayingString == true)
@@ -69,6 +73,10 @@ namespace MusicBeePlugin
 			else if (displayNote == false && displayNowPlayingString == false)
 			{
 				return nowPlayingString;
+			}
+			else if (displayNote == true && displayNowPlayingString == false)
+			{
+				return _MUSICNOTE + nowPlayingString;
 			}
 			else
 			{
@@ -140,7 +148,7 @@ namespace MusicBeePlugin
 
 				//Text Box
 				textBox.Text = nowPlayingPattern;
-				textBox.Bounds = new Rectangle(0, lbl.Height+2, configPanel.Width, textBox.Height);
+				textBox.Bounds = new Rectangle(0, lbl.Height + 2, configPanel.Width, textBox.Height);
 				textBox.BackColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl, ElementState.ElementStateDefault, ElementComponent.ComponentBackground));
 				textBox.ForeColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl, ElementState.ElementStateDefault, ElementComponent.ComponentForeground));
 				textBox.BorderStyle = BorderStyle.FixedSingle;
@@ -148,22 +156,20 @@ namespace MusicBeePlugin
 
 				//Button Creation
 				openContext = new SquareButton();
-				openContext.Bounds = new Rectangle(textBox.Right - (textBox.Height+1) , 2, textBox.Height-1 , textBox.Height-1);
+				openContext.Bounds = new Rectangle(textBox.Right - (textBox.Height + 1), 2, textBox.Height - 1, textBox.Height - 1);
 				openContext.ButtonColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanelLabel, ElementState.ElementStateDefault, ElementComponent.ComponentBackground));
 				openContext.FontColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl, ElementState.ElementStateDefault, ElementComponent.ComponentBackground));
 				openContext.Parent = textBox;
 				openContext.BringToFront();
-				openContext.UseVisualStyleBackColor = false;
 				openContext.TextAlign = ContentAlignment.MiddleCenter;
 				openContext.Text = "...";
 				textBox.Controls.Add(openContext);
 
 				//CheckBox for "Now Playing" Display
 				CheckBox nowPlayingCheck = new CheckBox();
-				nowPlayingCheck.Bounds = new Rectangle(0, textBox.Bottom + 2, configPanel.Right , nowPlayingCheck.Height);
+				nowPlayingCheck.Bounds = new Rectangle(0, textBox.Bottom + 2, configPanel.Right, nowPlayingCheck.Height);
 				nowPlayingCheck.Text = "Display \"Now Playing:\" text in front of the pattern";
-				nowPlayingCheck.Checked = true;
-				nowPlayingCheck.UseVisualStyleBackColor = false;
+				nowPlayingCheck.Checked = displayNowPlayingString;
 				nowPlayingCheck.FlatStyle = FlatStyle.Flat;
 				nowPlayingCheck.AutoSize = true;
 
@@ -171,19 +177,46 @@ namespace MusicBeePlugin
 				CheckBox noteDisplayCheck = new CheckBox();
 				noteDisplayCheck.Bounds = new Rectangle(0, nowPlayingCheck.Bottom, configPanel.Right, nowPlayingCheck.Height);
 				noteDisplayCheck.Text = "Display " + _MUSICNOTE + " char infront of \"Now Playing:\"";
-				noteDisplayCheck.Checked = true;
+				noteDisplayCheck.Checked = displayNote;
 				noteDisplayCheck.FlatStyle = FlatStyle.Flat;
 				noteDisplayCheck.AutoSize = true;
 
-				configPanel.Controls.AddRange(new Control[] { lbl,textBox,nowPlayingCheck,noteDisplayCheck });
+				configPanel.Controls.AddRange(new Control[] { lbl, textBox, nowPlayingCheck, noteDisplayCheck });
 				//EventHandlers Created.
 				openContext.MouseClick += openContext_MouseClick;
 				textBox.TextChanged += textBox_TextChanged;
+				nowPlayingCheck.CheckedChanged += nowPlayingCheck_Changed;
+				noteDisplayCheck.CheckedChanged += noteDisplayCheck_Changed;
 			}
 			return false;
 		}
-	
 
+		private void nowPlayingCheck_Changed(object sender, EventArgs e)
+		{
+			displayNowPlayingString = !displayNowPlayingString;
+			saveSettings();
+		}
+		private void noteDisplayCheck_Changed(object sender, EventArgs e)
+		{
+			displayNote = !displayNote;
+			saveSettings();
+		}
+
+		private void writeXmlNode(XmlDocument xmlDoc, string nodeName, string value)
+		{
+			XmlNode node = xmlDoc.SelectSingleNode("//" + nodeName);
+			if (node == null)
+			{
+				XmlElement pattern = xmlDoc.CreateElement(nodeName);
+				XmlNode root = xmlDoc.DocumentElement;
+				pattern.InnerText = value;
+				root.AppendChild(pattern);
+			}
+			else
+			{
+				node.InnerText = value;
+			}
+		}
 
 		/// <summary>
 		/// Saves the settings.
@@ -206,19 +239,35 @@ namespace MusicBeePlugin
 			}
 			XmlDocument xmD = new XmlDocument();
 			xmD.Load(settingFile);
-			XmlNode node = xmD.SelectSingleNode("//pattern");
-			if (node == null)
+			writeXmlNode(xmD, "pattern", nowPlayingPattern);
+			writeXmlNode(xmD, "displaynote", displayNote.ToString());
+			writeXmlNode(xmD, "displayNowPlaying", displayNowPlayingString.ToString());
+			xmD.Save(settingFile);
+		}
+
+		private string readPatternFromXml(XmlDocument xmlDoc,string pattern)
+		{
+			XmlNode node = xmlDoc.SelectSingleNode("//" + pattern);
+			if (node != null)
 			{
-				XmlElement pattern = xmD.CreateElement("pattern");
-				XmlNode root = xmD.DocumentElement;
-				pattern.InnerText = nowPlayingPattern;
-				root.AppendChild(pattern);
+				return node.InnerText;
 			}
 			else
 			{
-				node.InnerText = nowPlayingPattern;
+				return "<Artist> - Title>";
 			}
-			xmD.Save(settingFile);
+		}
+		private bool readCheckBoxValuesFromXml(XmlDocument xmlDoc, string pattern)
+		{
+			XmlNode node = xmlDoc.SelectSingleNode("//" + pattern);
+			if (node != null)
+			{
+				return Convert.ToBoolean(node.InnerText);
+			}
+			else
+			{
+				return true;
+			}
 		}
 
 		/// <summary>
@@ -229,20 +278,16 @@ namespace MusicBeePlugin
 			if (!File.Exists(settingFile))
 			{
 				nowPlayingPattern = "<Artist> - Title>";
+				displayNote = true;
+				displayNowPlayingString = true;
 			}
 			else
 			{
 				XmlDocument xmD = new XmlDocument();
 				xmD.Load(settingFile);
-				XmlNode node = xmD.SelectSingleNode("//pattern");
-				if (node != null)
-				{
-					nowPlayingPattern = node.InnerText;
-				}
-				else
-				{
-					nowPlayingPattern = "<Artist> - Title>";
-				}
+				nowPlayingPattern = readPatternFromXml(xmD,"pattern");
+				displayNote = readCheckBoxValuesFromXml(xmD, "displaynote");
+				displayNowPlayingString = readCheckBoxValuesFromXml(xmD, "displayNowPlaying");
 			}
 		}
 
@@ -291,9 +336,9 @@ namespace MusicBeePlugin
 			year.Click += year_Clicked;
 			album.Click += album_Clicked;
 
-			conmen.BackColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanel,ElementState.ElementStateDefault,ElementComponent.ComponentBackground));
+			conmen.BackColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanel, ElementState.ElementStateDefault, ElementComponent.ComponentBackground));
 			conmen.ForeColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanel, ElementState.ElementStateDefault, ElementComponent.ComponentForeground));
-	
+
 		}
 
 		#region context menu eventHandlers
@@ -452,7 +497,6 @@ namespace MusicBeePlugin
 							skype.CurrentUserProfile.MoodText = getNowPlayingString();
 						}
 					}
-
 
 					break;
 				case NotificationType.PlayStateChanged:
