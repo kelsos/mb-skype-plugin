@@ -40,7 +40,7 @@ namespace MusicBeePlugin
 		private ContextMenuStrip conmen;
 
 		//True if Skype is Running.
-		private bool skypeRunning;
+		private static bool skypeRunning;
 
 		private bool displayNote;
 		private bool displayNowPlayingString;
@@ -53,9 +53,10 @@ namespace MusicBeePlugin
 		{
 			foreach (Process clsProcess in Process.GetProcesses())
 			{
-				if (clsProcess.ProcessName.Contains("skype"))
+				if (clsProcess.ProcessName.Contains("skype") || clsProcess.ProcessName.Contains("Skype") || clsProcess.ProcessName.Contains("SKYPE"))
 				{
 					skypeRunning = true;
+					break;
 				}
 			}
 		}
@@ -128,7 +129,6 @@ namespace MusicBeePlugin
 			}
 		}
 
-
 		public bool Configure(IntPtr panelHandle)
 		{
 			// panelHandle will only be set if you set about.ConfigurationPanelHeight to a non-zero value
@@ -196,6 +196,7 @@ namespace MusicBeePlugin
 			displayNowPlayingString = !displayNowPlayingString;
 			saveSettings();
 		}
+
 		private void noteDisplayCheck_Changed(object sender, EventArgs e)
 		{
 			displayNote = !displayNote;
@@ -235,7 +236,6 @@ namespace MusicBeePlugin
 				xmNew.InsertBefore(xmlDec, xmNew.DocumentElement);
 				xmNew.AppendChild(rootNode);
 				xmNew.Save(settingFile);
-
 			}
 			XmlDocument xmD = new XmlDocument();
 			xmD.Load(settingFile);
@@ -245,7 +245,7 @@ namespace MusicBeePlugin
 			xmD.Save(settingFile);
 		}
 
-		private string readPatternFromXml(XmlDocument xmlDoc,string pattern)
+		private string readPatternFromXml(XmlDocument xmlDoc, string pattern)
 		{
 			XmlNode node = xmlDoc.SelectSingleNode("//" + pattern);
 			if (node != null)
@@ -257,6 +257,7 @@ namespace MusicBeePlugin
 				return "<Artist> - Title>";
 			}
 		}
+
 		private bool readCheckBoxValuesFromXml(XmlDocument xmlDoc, string pattern)
 		{
 			XmlNode node = xmlDoc.SelectSingleNode("//" + pattern);
@@ -285,7 +286,7 @@ namespace MusicBeePlugin
 			{
 				XmlDocument xmD = new XmlDocument();
 				xmD.Load(settingFile);
-				nowPlayingPattern = readPatternFromXml(xmD,"pattern");
+				nowPlayingPattern = readPatternFromXml(xmD, "pattern");
 				displayNote = readCheckBoxValuesFromXml(xmD, "displaynote");
 				displayNowPlayingString = readCheckBoxValuesFromXml(xmD, "displayNowPlaying");
 			}
@@ -338,7 +339,6 @@ namespace MusicBeePlugin
 
 			conmen.BackColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanel, ElementState.ElementStateDefault, ElementComponent.ComponentBackground));
 			conmen.ForeColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanel, ElementState.ElementStateDefault, ElementComponent.ComponentForeground));
-
 		}
 
 		#region context menu eventHandlers
@@ -418,7 +418,8 @@ namespace MusicBeePlugin
 		{
 			textBox.Text = "<Artist> - <Title>";
 		}
-		#endregion
+
+		#endregion context menu eventHandlers
 
 		private void textBox_TextChanged(object sender, EventArgs e)
 		{
