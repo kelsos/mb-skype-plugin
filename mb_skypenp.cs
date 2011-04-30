@@ -254,7 +254,7 @@ namespace MusicBeePlugin
 			}
 			else
 			{
-				return "<Artist> - Title>";
+				return "<Artist> - <Title>";
 			}
 		}
 
@@ -278,7 +278,7 @@ namespace MusicBeePlugin
 		{
 			if (!File.Exists(settingFile))
 			{
-				nowPlayingPattern = "<Artist> - Title>";
+				nowPlayingPattern = "<Artist> - <Title>";
 				displayNote = true;
 				displayNowPlayingString = true;
 			}
