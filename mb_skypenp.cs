@@ -16,9 +16,6 @@ namespace MusicBeePlugin
 		private PluginInfo about = new PluginInfo();
 		private SkypeClass skype;
 
-		//The initial mood is saved in order to restore it.
-		private string previousMoodMessage;
-
 		//Track tag related Variables.
 		private string artist;
 		private string title;
@@ -105,9 +102,9 @@ namespace MusicBeePlugin
 			about.MinApiRevision = MinApiRevision;
 			about.ReceiveNotifications = ReceiveNotificationFlags.PlayerEvents;
 			about.ConfigurationPanelHeight = 100;  //Height of the panel.
+			settingFile = mbApiInterface.Setting_GetPersistentStoragePath() + "mb_skypenp.ini";
 			initializeSkypeConnection();
 			//Persistent Settings are saved in mb_skypenp.ini file in the application settings folder.
-			settingFile = mbApiInterface.Setting_GetPersistentStoragePath() + "mb_skypenp.ini";
 			loadSettings(); //Loading the saved pattern.
 			return about;
 		}
@@ -119,8 +116,17 @@ namespace MusicBeePlugin
 				checkIfRunning();
 				if (skypeRunning)
 				{
-					skype = new SkypeClass(); //The SkypeClass object is used to access skype from the dll.
-					previousMoodMessage = skype.CurrentUserProfile.MoodText; //The current Mood Text is saved. (It will be restored at pause/stop or application/plugin close).
+					skype = new SkypeClass(); //Skype Class object is used to access the Skype.
+					if (!getRestoredStatusFromXml())
+					{
+						skype.CurrentUserProfile.MoodText = getPreviousMoodMessageFromXml();
+						setRestoredStatusToXml(true);
+					}
+					else
+					{
+						setPreviousMessageToXml(skype.CurrentUserProfile.MoodText);
+					}
+					//previousMoodMessage = skype.CurrentUserProfile.MoodText; //The current Mood Text is saved. (It will be restored at pause/stop or application/plugin close).
 				}
 			}
 			catch
@@ -243,6 +249,67 @@ namespace MusicBeePlugin
 			writeXmlNode(xmD, "displaynote", displayNote.ToString());
 			writeXmlNode(xmD, "displayNowPlaying", displayNowPlayingString.ToString());
 			xmD.Save(settingFile);
+		}
+
+
+		/// <summary>
+		/// Gets the previous Mood message from the Settings XML file.
+		/// </summary>
+		/// <returns>The stored message if the file exists, or a null string if the file is non existant</returns>
+		private string getPreviousMoodMessageFromXml()
+		{
+			if (File.Exists(settingFile))
+			{
+				XmlDocument xmD = new XmlDocument();
+				xmD.Load(settingFile);
+				return readPatternFromXml(xmD, "previousMoodMessage");
+			}
+			return "";
+		}
+
+		/// <summary>
+		/// Writes the previous Mood message to the Settings XML file.
+		/// </summary>
+		/// <param name="previousMoodMessage">The previous mood message.</param>
+		private void setPreviousMessageToXml(string previousMoodMessage)
+		{
+			if (File.Exists(settingFile))
+			{
+				XmlDocument xmD = new XmlDocument();
+				xmD.Load(settingFile);
+				writeXmlNode(xmD, "previousMoodMessage", previousMoodMessage);
+				xmD.Save(settingFile);
+			}
+		}
+
+		/// <summary>
+		/// Gets the restored status from XML.
+		/// </summary>
+		/// <returns></returns>
+		private bool getRestoredStatusFromXml()
+		{
+			if (File.Exists(settingFile))
+			{
+				XmlDocument xmD = new XmlDocument();
+				xmD.Load(settingFile);
+				return Convert.ToBoolean(readPatternFromXml(xmD, "moodRestored"));
+			}
+			return true;
+		}
+
+		/// <summary>
+		/// Sets the restored status to XML.
+		/// </summary>
+		/// <param name="restoredStatus">if set to <c>true</c> [restored status].</param>
+		private void setRestoredStatusToXml(bool restoredStatus)
+		{
+			if(File.Exists(settingFile))
+			{
+				XmlDocument xmD = new XmlDocument();
+				xmD.Load(settingFile);
+				writeXmlNode(xmD,"moodRestored",restoredStatus.ToString());
+				xmD.Save(settingFile);
+			}
 		}
 
 		private string readPatternFromXml(XmlDocument xmlDoc, string pattern)
@@ -431,7 +498,11 @@ namespace MusicBeePlugin
 		// MusicBee is closing the plugin (plugin is being disabled by user or MusicBee is shutting down)
 		public void Close(PluginCloseReason reason)
 		{
-			skype.CurrentUserProfile.MoodText = previousMoodMessage;
+			if (!getRestoredStatusFromXml())
+			{
+				skype.CurrentUserProfile.MoodText = getPreviousMoodMessageFromXml();
+				setRestoredStatusToXml(true);
+			}
 		}
 
 		/// <summary>
@@ -488,6 +559,10 @@ namespace MusicBeePlugin
 
 					if (skypeRunning)
 					{
+						if (getRestoredStatusFromXml())
+						{
+							setRestoredStatusToXml(false);
+						}
 						skype.CurrentUserProfile.MoodText = getNowPlayingString();
 					}
 					else
@@ -495,6 +570,10 @@ namespace MusicBeePlugin
 						initializeSkypeConnection();
 						if (skypeRunning)
 						{
+							if (getRestoredStatusFromXml())
+							{
+								setRestoredStatusToXml(false);
+							}
 							skype.CurrentUserProfile.MoodText = getNowPlayingString();
 						}
 					}
@@ -503,21 +582,23 @@ namespace MusicBeePlugin
 				case NotificationType.PlayStateChanged:
 					switch (mbApiInterface.Player_GetPlayState())
 					{
-						case PlayState.Paused:
-							if (skypeRunning)
-							{
-								skype.CurrentUserProfile.MoodText = previousMoodMessage;
-							}
-							break;
 						case PlayState.Stopped:
 							if (skypeRunning)
 							{
-								skype.CurrentUserProfile.MoodText = previousMoodMessage;
+								if (!getRestoredStatusFromXml())
+								{
+									skype.CurrentUserProfile.MoodText = getPreviousMoodMessageFromXml();
+									setRestoredStatusToXml(true);
+								}
 							}
 							break;
 						case PlayState.Playing:
 							if (skypeRunning)
 							{
+								if (getRestoredStatusFromXml())
+								{
+									setRestoredStatusToXml(false);
+								}
 								skype.CurrentUserProfile.MoodText = getNowPlayingString();
 							}
 							break;
