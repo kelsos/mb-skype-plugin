@@ -1,130 +1,116 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Windows.Forms;
-using System.Text;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.ComponentModel;
+using System.Windows.Forms;
 
 namespace MusicBeePlugin
 {
-   class SquareButton : Button
-   {
-      bool mousedown = false;
-      bool mouseenter = false;
+    internal class SquareButton : Button
+    {
+        private bool _mousedown;
+        private bool _mouseenter;
 
-      Color _textColor;
-      Color _buttonColor;
+        public SquareButton()
+        {
+            FontColor = Color.Black;
+            ButtonColor = Color.Gray;
+            _mousedown = false;
+            _mouseenter = false;
+        }
 
-      public SquareButton()
-         : base()
-      {
-         _textColor = Color.Black;
-         _buttonColor = Color.Gray;
-      }
+        [Description("Sets Gets the text color."), Category("Values"), DefaultValue(typeof (Color), "Black"),
+         Browsable(true)]
+        public Color FontColor { get; set; }
 
-      [Description("Sets Gets the text color."),
-       Category("Values"),
-       DefaultValue(typeof(Color), "Black"),
-       Browsable(true)]
-      public Color FontColor
-      {
-         get
-         {
-            return _textColor;
-         }
-         set
-         {
-            _textColor = value;
-         }
-      }
-      [Description("Sets or gets the button color."),
-      Category("Values"),
-      DefaultValue(typeof(Color), "Gray"),
-      Browsable(true)]
-      public Color ButtonColor
-      {
-         get
-         {
-            return _buttonColor;
-         }
-         set
-         {
-            _buttonColor = value;
-         }
-      }
+        [Description("Sets or gets the button color."), Category("Values"), DefaultValue(typeof (Color), "Gray"),
+         Browsable(true)]
+        public Color ButtonColor { get; set; }
 
-      protected override void OnPaint(PaintEventArgs pevent)
-      {
-         if (mousedown == false)
-         {
-				Graphics g = pevent.Graphics;
-				g.SmoothingMode = SmoothingMode.AntiAlias;
-				Rectangle outerRectangle = new Rectangle(0, 0, this.Width, this.Height);
-				SolidBrush solid = new SolidBrush(ControlPaint.Light(_buttonColor));
-				g.FillRectangle(solid, outerRectangle);
-				SolidBrush Brush = new SolidBrush(_textColor);
-				RectangleF rf = new RectangleF(0, 0, this.Width - 1, this.Height - 1);
-				StringFormat sf = new StringFormat();
-				sf.Alignment = StringAlignment.Center;
-				sf.LineAlignment = StringAlignment.Center;
-				g.DrawString(this.Text, new Font("tahoma", 10.0f), Brush, rf, sf);
-         }
+        protected override void OnPaint(PaintEventArgs pevent)
+        {
+            var outerRectangle = new Rectangle(0, 0, Width, Height);
+            SolidBrush solid;
+            RectangleF rf;
+            StringFormat sf;
+            Graphics g;
+            SolidBrush brush;
+            if (_mousedown == false)
+            {
+                g = pevent.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                outerRectangle = new Rectangle(0, 0, Width, Height);
+                using (solid = new SolidBrush(ControlPaint.Light(ButtonColor)))
+                {
+                    g.FillRectangle(solid, outerRectangle);
+                }
+                using (brush = new SolidBrush(FontColor))
+                {
+                    rf = new RectangleF(0, 0, Width - 1, Height - 1);
+                    using (
+                        sf =
+                        new StringFormat {Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center})
+                    {
+                        g.DrawString(Text, new Font("tahoma", 10.0f), brush, rf, sf);
+                    }
+                }
+            }
 
-         else
-         {
-				Graphics g = pevent.Graphics;
-				g.SmoothingMode = SmoothingMode.AntiAlias;
-				Rectangle outerRectangle = new Rectangle(0, 0, this.Width, this.Height);
-				SolidBrush solid = new SolidBrush(ControlPaint.Light(_buttonColor));
-				g.FillRectangle(solid, outerRectangle);
-				SolidBrush Brush = new SolidBrush(_textColor);
-				RectangleF rf = new RectangleF(0, 0, this.Width-1, this.Height-1);
-				StringFormat sf = new StringFormat();
-				sf.Alignment = StringAlignment.Center;
-				sf.LineAlignment = StringAlignment.Center;
-				g.DrawString(this.Text, new Font("tahoma", 10.0f), Brush, rf, sf);
-         }
+            else
+            {
+                g = pevent.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using (solid = new SolidBrush(ControlPaint.Light(ButtonColor)))
+                {
+                    g.FillRectangle(solid, outerRectangle);
+                }
+                using (brush = new SolidBrush(FontColor))
+                {
+                    rf = new RectangleF(0, 0, Width - 1, Height - 1);
+                    using (sf = new StringFormat())
+                    {
+                        sf.Alignment = StringAlignment.Center;
+                        sf.LineAlignment = StringAlignment.Center;
+                        g.DrawString(Text, new Font("tahoma", 10.0f), brush, rf, sf);
+                    }
+                }
+            }
 
-         if (mouseenter == true)
-         {
-            Graphics g = pevent.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            Rectangle outerRectangle = new Rectangle(0, 0, this.Width, this.Height);
-            SolidBrush solid = new SolidBrush(ControlPaint.LightLight(_buttonColor));
+            if (_mouseenter != true) return;
+
+            outerRectangle = new Rectangle(0, 0, Width, Height);
+            solid = new SolidBrush(ControlPaint.LightLight(ButtonColor));
             g.FillRectangle(solid, outerRectangle);
-            SolidBrush Brush = new SolidBrush(_textColor);
-            RectangleF rf = new RectangleF(0, 0, this.Width-1, this.Height - 1);
-            StringFormat sf = new StringFormat();
-            sf.Alignment = StringAlignment.Center;
-            sf.LineAlignment = StringAlignment.Center;
-            g.DrawString(this.Text, new Font("tahoma", 10.0f), Brush, rf, sf);
-         }
-      }
+            using (brush = new SolidBrush(FontColor))
+            {
+                rf = new RectangleF(0, 0, Width - 1, Height - 1);
+                sf = new StringFormat {Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center};
+                g.DrawString(Text, new Font("tahoma", 10.0f), brush, rf, sf);
+            }
+        }
 
-      protected override void OnMouseDown(MouseEventArgs mevent)
-      {
-         this.mousedown = true;
-         base.OnMouseDown(mevent);
-      }
+        protected override void OnMouseDown(MouseEventArgs mevent)
+        {
+            _mousedown = true;
+            base.OnMouseDown(mevent);
+        }
 
-      protected override void OnMouseUp(MouseEventArgs mevent)
-      {
-         this.mousedown = false;
-         base.OnMouseUp(mevent);
-      }
+        protected override void OnMouseUp(MouseEventArgs mevent)
+        {
+            _mousedown = false;
+            base.OnMouseUp(mevent);
+        }
 
-      protected override void OnMouseEnter(EventArgs e)
-      {
-         this.mouseenter = true;
-         base.OnMouseEnter(e);
-      }
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            _mouseenter = true;
+            base.OnMouseEnter(e);
+        }
 
-      protected override void OnMouseLeave(EventArgs e)
-      {
-         this.mouseenter = false;
-         base.OnMouseLeave(e);
-      }
-
-   }
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            _mouseenter = false;
+            base.OnMouseLeave(e);
+        }
+    }
 }

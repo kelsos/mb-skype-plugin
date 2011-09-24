@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -10,625 +11,879 @@ using SKYPE4COMLib;
 
 namespace MusicBeePlugin
 {
-	public partial class Plugin
-	{
-		private MusicBeeApiInterface mbApiInterface;
-		private PluginInfo about = new PluginInfo();
-		private SkypeClass skype;
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <remarks></remarks>
+    public partial class Plugin
+    {
+        /// <summary>
+        /// 
+        /// </summary>
+        private const char Musicnote = '\u266B';
+        //True if Skype is Running.
+        /// <summary>
+        /// 
+        /// </summary>
+        private static bool _skypeRunning;
+        /// <summary>
+        /// 
+        /// </summary>
+        private readonly PluginInfo _about = new PluginInfo();
+        /// <summary>
+        /// 
+        /// </summary>
+        private string _album;
+        /// <summary>
+        /// 
+        /// </summary>
+        private string _albumArtist;
+        /// <summary>
+        /// 
+        /// </summary>
+        private string _artist;
+        /// <summary>
+        /// 
+        /// </summary>
+        private Panel _configPanel;
+        /// <summary>
+        /// 
+        /// </summary>
+        private ContextMenuStrip _conmen;
+        //The nowPlayingPattern & The string that will get displaying the mood box of Skype.
+        /// <summary>
+        /// 
+        /// </summary>
+        private bool _displayNote;
+        /// <summary>
+        /// 
+        /// </summary>
+        private bool _displayNowPlayingString;
+        /// <summary>
+        /// 
+        /// </summary>
+        private MusicBeeApiInterface _mbApiInterface;
+        /// <summary>
+        /// 
+        /// </summary>
+        private string _nowPlayingPattern;
+        /// <summary>
+        /// 
+        /// </summary>
+        private string _nowPlayingString;
+        /// <summary>
+        /// 
+        /// </summary>
+        private SquareButton _openContext;
+        /// <summary>
+        /// 
+        /// </summary>
+        private string _settingFile;
+        /// <summary>
+        /// 
+        /// </summary>
+        private SkypeClass _skype;
+        /// <summary>
+        /// 
+        /// </summary>
+        private TextBox _textBox;
+        /// <summary>
+        /// 
+        /// </summary>
+        private string _title;
+        /// <summary>
+        /// 
+        /// </summary>
+        private string _year;
 
-		//Track tag related Variables.
-		private string artist;
-		private string title;
-		private string albumArtist;
-		private string year;
-		private string album;
+        /// <summary>
+        /// Gets the running processes and checks if Skype is running.
+        /// </summary>
+        /// <remarks></remarks>
+        private static void CheckIfRunning()
+        {
+            foreach (var clsProcess in Process.GetProcesses())
+            {
+                if (!(clsProcess.ProcessName.Contains("skype") || clsProcess.ProcessName.Contains("Skype") ||
+                    clsProcess.ProcessName.Contains("SKYPE"))) continue;
+                _skypeRunning = true;
+                break;
+            }
+        }
 
-		//The nowPlayingPattern & The string that will get displaying the mood box of Skype.
-		private string nowPlayingPattern;
-		private string nowPlayingString;
+        /// <summary>
+        /// Reads the values of the boolean variables and creates the Now Playing String to be Displayed
+        /// </summary>
+        /// <returns>the now playing string</returns>
+        /// <remarks></remarks>
+        private string GetNowPlayingString()
+        {
+            if (_displayNote == false && _displayNowPlayingString)
+            {
+                return "Now Playing: " + _nowPlayingString;
+            }
+            if (_displayNote == false && _displayNowPlayingString == false)
+            {
+                return _nowPlayingString;
+            }
+            if (_displayNote && _displayNowPlayingString == false)
+            {
+                return Musicnote + _nowPlayingString;
+            }
+            return String.Format("{0}Now Playing: {1}", Musicnote, _nowPlayingString);
+        }
 
-		//The Path to the file where the settings will be saved.
-		private string settingFile;
+        /// <summary>
+        /// Initialises the specified API interface PTR.
+        /// </summary>
+        /// <param name="apiInterfacePtr">The API interface PTR.</param>
+        /// <returns></returns>
+        /// <remarks></remarks>
+        public PluginInfo Initialise(IntPtr apiInterfacePtr)
+        {
+            _mbApiInterface =
+                (MusicBeeApiInterface) Marshal.PtrToStructure(apiInterfacePtr, typeof (MusicBeeApiInterface));
+            var v = Assembly.GetExecutingAssembly().GetName().Version;
+            _skypeRunning = false;
+            _displayNote = true;
+            _displayNowPlayingString = true;
+            _about.PluginInfoVersion = PluginInfoVersion;
+            _about.Name = "Skype: Now Playing";
+            _about.Description = "Changes the skype mood to the currently playing track";
+            _about.Author = "Kelsos";
+            _about.TargetApplication = "Skype";
+                // current only applies to artwork, lyrics or instant messenger name that appears in the provider drop down selector or target Instant Messenger
+            _about.Type = PluginType.General;
+            _about.VersionMajor = Convert.ToInt16(v.Major); // your plugin version
+            _about.VersionMinor = Convert.ToInt16(v.Minor);
+            _about.Revision = Convert.ToInt16(v.Revision);
+            _about.MinInterfaceVersion = MinInterfaceVersion;
+            _about.MinApiRevision = MinApiRevision;
+            _about.ReceiveNotifications = ReceiveNotificationFlags.PlayerEvents;
+            _about.ConfigurationPanelHeight = 100; //Height of the panel.
+            _settingFile = _mbApiInterface.Setting_GetPersistentStoragePath() + "mb_skypenp.ini";
+            InitializeSkypeConnection();
+            //Persistent Settings are saved in mb_skypenp.ini file in the application settings folder.
+            LoadSettings(); //Loading the saved pattern.
+            //Stop timer initialization at 5 seconds. The timer is disabled at start.
+            //_stopTimer.Interval = 5000;
+            //_stopTimer.Enabled = false;
+            //_stopTimer.Tick += StopTimerTick;
+            return _about;
+        }
 
-		//The Configuration panel items are declared in the DLL scope in order to be accessible from the various methods.
-		private TextBox textBox;
-		private SquareButton openContext;
-		private Panel configPanel;
-		private ContextMenuStrip conmen;
+        /// <summary>
+        /// Handles the tick event of the Stop Timer. On the event the method restores the default message, 
+        /// and disables the timer.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void StopTimerTick(object sender, EventArgs e)
+        {
+            RestoreDefaultMessage();
+            //_stopTimer.Enabled = false;
+        }
 
-		//True if Skype is Running.
-		private static bool skypeRunning;
+        /// <summary>
+        /// Initializes the skype connection.
+        /// </summary>
+        /// <remarks></remarks>
+        private void InitializeSkypeConnection()
+        {
+            try
+            {
+                CheckIfRunning();
+                if (_skypeRunning)
+                {
+                    _skype = new SkypeClass(); //Skype Class object is used to access the Skype.
+                    if (!GetRestoredStatusFromXml())
+                    {
+                        _skype.CurrentUserProfile.MoodText = GetPreviousMoodMessageFromXml();
+                        SetRestoredStatusToXml(true);
+                    }
+                    else
+                    {
+                        SetPreviousMessageToXml(_skype.CurrentUserProfile.MoodText);
+                    }
+                    //previousMoodMessage = skype.CurrentUserProfile.MoodText; //The current Mood Text is saved. (It will be restored at pause/stop or application/plugin close).
+                }
+            }
+            catch
+            {
+                _skypeRunning = false;
+            }
+        }
 
-		private bool displayNote;
-		private bool displayNowPlayingString;
-		private const char _MUSICNOTE = '\u266B';
+        /// <summary>
+        /// Configures the specified panel handle.
+        /// </summary>
+        /// <param name="panelHandle">The panel handle.</param>
+        /// <returns></returns>
+        /// <remarks></remarks>
+        public bool Configure(IntPtr panelHandle)
+        {
+            // panelHandle will only be set if you set about.ConfigurationPanelHeight to a non-zero value
+            // keep in mind the panel width is scaled according to the font the user has selected
+            if (panelHandle != IntPtr.Zero)
+            {
+                using (var tp = new ToolTip())
+                {
+                    _textBox = new TextBox();
+                    _configPanel = (Panel) Control.FromHandle(panelHandle);
 
-		/// <summary>
-		/// Gets the running processes and checks if Skype is running.
-		/// </summary>
-		private void checkIfRunning()
-		{
-			foreach (Process clsProcess in Process.GetProcesses())
-			{
-				if (clsProcess.ProcessName.Contains("skype") || clsProcess.ProcessName.Contains("Skype") || clsProcess.ProcessName.Contains("SKYPE"))
-				{
-					skypeRunning = true;
-					break;
-				}
-			}
-		}
+                    //Label
+                    using (
+                        var patternBoxLabel = new Label
+                                                  {
+                                                      Bounds = new Rectangle(0, 0, _configPanel.Width, 22),
+                                                      Text = "The pattern to be displayed:"
+                                                  })
+                    {
+                        tp.SetToolTip(_textBox,
+                                      "Tag indentifiers that can be used are: <Artist>, <AlbumArtist>, <Title>, <Year> and <Album>");
+                        //Text Box
+                        _textBox.Text = _nowPlayingPattern;
+                        _textBox.Bounds = new Rectangle(0, patternBoxLabel.Height + 2, _configPanel.Width,
+                                                        _textBox.Height);
+                        _textBox.BackColor =
+                            Color.FromArgb(_mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl,
+                                                                                        ElementState.ElementStateDefault,
+                                                                                        ElementComponent.
+                                                                                            ComponentBackground));
+                        _textBox.ForeColor =
+                            Color.FromArgb(_mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl,
+                                                                                        ElementState.ElementStateDefault,
+                                                                                        ElementComponent.
+                                                                                            ComponentForeground));
+                        _textBox.BorderStyle = BorderStyle.FixedSingle;
+                        _textBox.HideSelection = false;
+                        //Button Creation
+                        _openContext = new SquareButton
+                                           {
+                                               Bounds =
+                                                   new Rectangle(_textBox.Right - (_textBox.Height + 1), 2,
+                                                                 _textBox.Height - 1,
+                                                                 _textBox.Height - 1),
+                                               ButtonColor =
+                                                   Color.FromArgb(
+                                                       _mbApiInterface.Setting_GetSkinElementColour(
+                                                           SkinElement.SkinInputPanelLabel,
+                                                           ElementState.ElementStateDefault,
+                                                           ElementComponent.ComponentBackground)),
+                                               FontColor =
+                                                   Color.FromArgb(
+                                                       _mbApiInterface.Setting_GetSkinElementColour(
+                                                           SkinElement.SkinInputControl,
+                                                           ElementState.ElementStateDefault,
+                                                           ElementComponent.ComponentBackground)),
+                                               Parent = _textBox
+                                           };
+                        _openContext.BringToFront();
+                        _openContext.TextAlign = ContentAlignment.MiddleCenter;
+                        _openContext.Text = "...";
+                        _textBox.Controls.Add(_openContext);
+                        //CheckBox for "Now Playing" Display
+                        using (var nowPlayingCheck = new CheckBox())
+                        {
+                            nowPlayingCheck.Bounds = new Rectangle(0, _textBox.Bottom + 2, _configPanel.Right,
+                                                                   nowPlayingCheck.Height);
+                            nowPlayingCheck.Text = "Display \"Now Playing:\" text in front of the pattern";
+                            nowPlayingCheck.Checked = _displayNowPlayingString;
+                            nowPlayingCheck.FlatStyle = FlatStyle.Flat;
+                            nowPlayingCheck.AutoSize = true;
+                            //CheckBox for \u266B Unicode Character Display
+                            using (
+                                var noteDisplayCheck = new CheckBox
+                                                           {
+                                                               Bounds =
+                                                                   new Rectangle(0, nowPlayingCheck.Bottom,
+                                                                                 _configPanel.Right,
+                                                                                 nowPlayingCheck.Height),
+                                                               Text =
+                                                                   String.Format(
+                                                                       "Display {0} char infront of \"Now Playing:\"",
+                                                                       Musicnote),
+                                                               Checked = _displayNote,
+                                                               FlatStyle = FlatStyle.Flat,
+                                                               AutoSize = true
+                                                           })
+                            {
+                                _configPanel.Controls.AddRange(new Control[]
+                                                                   {
+                                                                       patternBoxLabel, _textBox, nowPlayingCheck,
+                                                                       noteDisplayCheck
+                                                                   });
+                                //EventHandlers Created.
+                                _openContext.MouseClick += OpenContextMouseClick;
+                                _textBox.TextChanged += TextBoxTextChanged;
+                                nowPlayingCheck.CheckedChanged += NowPlayingCheckChanged;
+                                noteDisplayCheck.CheckedChanged += NoteDisplayCheckChanged;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
 
-		/// <summary>
-		/// Reads the values of the boolean variables and creates the Now Playing String to be Displayed
-		/// </summary>
-		/// <returns>the now playing string</returns>
-		private string getNowPlayingString()
-		{
-			if (displayNote == false && displayNowPlayingString == true)
-			{
-				return "Now Playing: " + nowPlayingString;
-			}
-			else if (displayNote == false && displayNowPlayingString == false)
-			{
-				return nowPlayingString;
-			}
-			else if (displayNote == true && displayNowPlayingString == false)
-			{
-				return _MUSICNOTE + nowPlayingString;
-			}
-			else
-			{
-				return _MUSICNOTE + "Now Playing: " + nowPlayingString;
-			}
-		}
+        /// <summary>
+        /// Event Handler that changes the value of the _displayNowPlayingString when the corresponding checkbox changes value.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void NowPlayingCheckChanged(object sender, EventArgs e)
+        {
+            _displayNowPlayingString = !_displayNowPlayingString;
+            SaveSettings();
+        }
 
-		public PluginInfo Initialise(IntPtr apiInterfacePtr)
-		{
-			mbApiInterface = (MusicBeeApiInterface)Marshal.PtrToStructure(apiInterfacePtr, typeof(MusicBeeApiInterface));
-			Version v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-			skypeRunning = false;
-			displayNote = true;
-			displayNowPlayingString = true;
-			about.PluginInfoVersion = PluginInfoVersion;
-			about.Name = "Skype: Now Playing";
-			about.Description = "Changes the skype mood to the currently playing track";
-			about.Author = "Kelsos";
-			about.TargetApplication = "Skype";   // current only applies to artwork, lyrics or instant messenger name that appears in the provider drop down selector or target Instant Messenger
-			about.Type = PluginType.General;
-			about.VersionMajor = Convert.ToInt16(v.Major);  // your plugin version
-			about.VersionMinor = Convert.ToInt16(v.Minor);
-			about.Revision = Convert.ToInt16(v.Revision);
-			about.MinInterfaceVersion = MinInterfaceVersion;
-			about.MinApiRevision = MinApiRevision;
-			about.ReceiveNotifications = ReceiveNotificationFlags.PlayerEvents;
-			about.ConfigurationPanelHeight = 100;  //Height of the panel.
-			settingFile = mbApiInterface.Setting_GetPersistentStoragePath() + "mb_skypenp.ini";
-			initializeSkypeConnection();
-			//Persistent Settings are saved in mb_skypenp.ini file in the application settings folder.
-			loadSettings(); //Loading the saved pattern.
-			return about;
-		}
+        /// <summary>
+        /// Event Handler that changes the value of the _displayNote when the corresponding checkbox changes value.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void NoteDisplayCheckChanged(object sender, EventArgs e)
+        {
+            _displayNote = !_displayNote;
+            SaveSettings();
+        }
 
-		private void initializeSkypeConnection()
-		{
-			try
-			{
-				checkIfRunning();
-				if (skypeRunning)
-				{
-					skype = new SkypeClass(); //Skype Class object is used to access the Skype.
-					if (!getRestoredStatusFromXml())
-					{
-						skype.CurrentUserProfile.MoodText = getPreviousMoodMessageFromXml();
-						setRestoredStatusToXml(true);
-					}
-					else
-					{
-						setPreviousMessageToXml(skype.CurrentUserProfile.MoodText);
-					}
-					//previousMoodMessage = skype.CurrentUserProfile.MoodText; //The current Mood Text is saved. (It will be restored at pause/stop or application/plugin close).
-				}
-			}
-			catch
-			{
-				skypeRunning = false;
-			}
-		}
+        /// <summary>
+        /// Writes an XML node.
+        /// </summary>
+        /// <param name="xmlDoc">The XML document.</param>
+        /// <param name="nodeName">Name of the node.</param>
+        /// <param name="value">The value.</param>
+        /// <remarks></remarks>
+        private static void WriteXmlNode(XmlDocument xmlDoc, string nodeName, string value)
+        {
+            XmlNode node = xmlDoc.SelectSingleNode("//" + nodeName);
+            if (node == null)
+            {
+                var pattern = xmlDoc.CreateElement(nodeName);
+                XmlNode root = xmlDoc.DocumentElement;
+                pattern.InnerText = value;
+                if (root != null) root.AppendChild(pattern);
+            }
+            else
+            {
+                node.InnerText = value;
+            }
+        }
 
-		public bool Configure(IntPtr panelHandle)
-		{
-			// panelHandle will only be set if you set about.ConfigurationPanelHeight to a non-zero value
-			// keep in mind the panel width is scaled according to the font the user has selected
-			if (panelHandle != IntPtr.Zero)
-			{
-				ToolTip tp = new ToolTip();
-				textBox = new TextBox();
-				configPanel = (Panel)Panel.FromHandle(panelHandle);
+        /// <summary>
+        /// Saves the settings.
+        /// </summary>
+        /// <remarks></remarks>
+        private void SaveSettings()
+        {
+            if (!File.Exists(_settingFile))
+            {
+                var xmNew = new XmlDocument();
 
-				//Label
-				Label lbl = new Label();
-				lbl.Bounds = new Rectangle(0, 0, configPanel.Width, 22);
-				lbl.Text = "The pattern to be displayed:";
+                //Writing the XML Declaration
+                var xmlDec = xmNew.CreateXmlDeclaration("1.0", "utf-8", "yes");
 
-				tp.SetToolTip(textBox, "Tag indentifiers that can be used are: <Artist>, <AlbumArtist>, <Title>, <Year> and <Album>");
+                //Creating the root element
+                var rootNode = xmNew.CreateElement("Settings");
+                xmNew.InsertBefore(xmlDec, xmNew.DocumentElement);
+                xmNew.AppendChild(rootNode);
+                xmNew.Save(_settingFile);
+            }
+            var xmD = new XmlDocument();
+            xmD.Load(_settingFile);
+            WriteXmlNode(xmD, "pattern", _nowPlayingPattern);
+            WriteXmlNode(xmD, "displaynote", _displayNote.ToString());
+            WriteXmlNode(xmD, "displayNowPlaying", _displayNowPlayingString.ToString());
+            xmD.Save(_settingFile);
+        }
 
-				//Text Box
-				textBox.Text = nowPlayingPattern;
-				textBox.Bounds = new Rectangle(0, lbl.Height + 2, configPanel.Width, textBox.Height);
-				textBox.BackColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl, ElementState.ElementStateDefault, ElementComponent.ComponentBackground));
-				textBox.ForeColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl, ElementState.ElementStateDefault, ElementComponent.ComponentForeground));
-				textBox.BorderStyle = BorderStyle.FixedSingle;
-				textBox.HideSelection = false;
+        /// <summary>
+        /// Gets the previous Mood message from the Settings XML file.
+        /// </summary>
+        /// <returns>The stored message if the file exists, or a null string if the file is non existant</returns>
+        /// <remarks></remarks>
+        private string GetPreviousMoodMessageFromXml()
+        {
+            if (File.Exists(_settingFile))
+            {
+                var xmD = new XmlDocument();
+                xmD.Load(_settingFile);
+                return ReadPatternFromXml(xmD, "previousMoodMessage");
+            }
+            return "";
+        }
 
-				//Button Creation
-				openContext = new SquareButton();
-				openContext.Bounds = new Rectangle(textBox.Right - (textBox.Height + 1), 2, textBox.Height - 1, textBox.Height - 1);
-				openContext.ButtonColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanelLabel, ElementState.ElementStateDefault, ElementComponent.ComponentBackground));
-				openContext.FontColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl, ElementState.ElementStateDefault, ElementComponent.ComponentBackground));
-				openContext.Parent = textBox;
-				openContext.BringToFront();
-				openContext.TextAlign = ContentAlignment.MiddleCenter;
-				openContext.Text = "...";
-				textBox.Controls.Add(openContext);
+        /// <summary>
+        /// Writes the previous Mood message to the Settings XML file.
+        /// </summary>
+        /// <param name="previousMoodMessage">The previous mood message.</param>
+        /// <remarks></remarks>
+        private void SetPreviousMessageToXml(string previousMoodMessage)
+        {
+            if (!File.Exists(_settingFile)) return;
+            var xmD = new XmlDocument();
+            xmD.Load(_settingFile);
+            WriteXmlNode(xmD, "previousMoodMessage", previousMoodMessage);
+            xmD.Save(_settingFile);
+        }
 
-				//CheckBox for "Now Playing" Display
-				CheckBox nowPlayingCheck = new CheckBox();
-				nowPlayingCheck.Bounds = new Rectangle(0, textBox.Bottom + 2, configPanel.Right, nowPlayingCheck.Height);
-				nowPlayingCheck.Text = "Display \"Now Playing:\" text in front of the pattern";
-				nowPlayingCheck.Checked = displayNowPlayingString;
-				nowPlayingCheck.FlatStyle = FlatStyle.Flat;
-				nowPlayingCheck.AutoSize = true;
-
-				//CheckBox for \u266B Unicode Character Display
-				CheckBox noteDisplayCheck = new CheckBox();
-				noteDisplayCheck.Bounds = new Rectangle(0, nowPlayingCheck.Bottom, configPanel.Right, nowPlayingCheck.Height);
-				noteDisplayCheck.Text = "Display " + _MUSICNOTE + " char infront of \"Now Playing:\"";
-				noteDisplayCheck.Checked = displayNote;
-				noteDisplayCheck.FlatStyle = FlatStyle.Flat;
-				noteDisplayCheck.AutoSize = true;
-
-				configPanel.Controls.AddRange(new Control[] { lbl, textBox, nowPlayingCheck, noteDisplayCheck });
-				//EventHandlers Created.
-				openContext.MouseClick += openContext_MouseClick;
-				textBox.TextChanged += textBox_TextChanged;
-				nowPlayingCheck.CheckedChanged += nowPlayingCheck_Changed;
-				noteDisplayCheck.CheckedChanged += noteDisplayCheck_Changed;
-			}
-			return false;
-		}
-
-		private void nowPlayingCheck_Changed(object sender, EventArgs e)
-		{
-			displayNowPlayingString = !displayNowPlayingString;
-			saveSettings();
-		}
-
-		private void noteDisplayCheck_Changed(object sender, EventArgs e)
-		{
-			displayNote = !displayNote;
-			saveSettings();
-		}
-
-		private void writeXmlNode(XmlDocument xmlDoc, string nodeName, string value)
-		{
-			XmlNode node = xmlDoc.SelectSingleNode("//" + nodeName);
-			if (node == null)
-			{
-				XmlElement pattern = xmlDoc.CreateElement(nodeName);
-				XmlNode root = xmlDoc.DocumentElement;
-				pattern.InnerText = value;
-				root.AppendChild(pattern);
-			}
-			else
-			{
-				node.InnerText = value;
-			}
-		}
-
-		/// <summary>
-		/// Saves the settings.
-		/// </summary>
-		private void saveSettings()
-		{
-			if (!File.Exists(settingFile))
-			{
-				XmlDocument xmNew = new XmlDocument();
-
-				//Writing the XML Declaration
-				XmlDeclaration xmlDec = xmNew.CreateXmlDeclaration("1.0", "utf-8", "yes");
-
-				//Creating the root element
-				XmlElement rootNode = xmNew.CreateElement("Settings");
-				xmNew.InsertBefore(xmlDec, xmNew.DocumentElement);
-				xmNew.AppendChild(rootNode);
-				xmNew.Save(settingFile);
-			}
-			XmlDocument xmD = new XmlDocument();
-			xmD.Load(settingFile);
-			writeXmlNode(xmD, "pattern", nowPlayingPattern);
-			writeXmlNode(xmD, "displaynote", displayNote.ToString());
-			writeXmlNode(xmD, "displayNowPlaying", displayNowPlayingString.ToString());
-			xmD.Save(settingFile);
-		}
+        /// <summary>
+        /// Gets the restored status from XML.
+        /// </summary>
+        /// <returns></returns>
+        /// <remarks></remarks>
+        private bool GetRestoredStatusFromXml()
+        {
+            if (File.Exists(_settingFile))
+            {
+                var xmD = new XmlDocument();
+                xmD.Load(_settingFile);
 
 
-		/// <summary>
-		/// Gets the previous Mood message from the Settings XML file.
-		/// </summary>
-		/// <returns>The stored message if the file exists, or a null string if the file is non existant</returns>
-		private string getPreviousMoodMessageFromXml()
-		{
-			if (File.Exists(settingFile))
-			{
-				XmlDocument xmD = new XmlDocument();
-				xmD.Load(settingFile);
-				return readPatternFromXml(xmD, "previousMoodMessage");
-			}
-			return "";
-		}
+                return Convert.ToBoolean(ReadBooleanValuesFromXml(xmD, "moodRestored"));
+            }
+            return true;
+        }
 
-		/// <summary>
-		/// Writes the previous Mood message to the Settings XML file.
-		/// </summary>
-		/// <param name="previousMoodMessage">The previous mood message.</param>
-		private void setPreviousMessageToXml(string previousMoodMessage)
-		{
-			if (File.Exists(settingFile))
-			{
-				XmlDocument xmD = new XmlDocument();
-				xmD.Load(settingFile);
-				writeXmlNode(xmD, "previousMoodMessage", previousMoodMessage);
-				xmD.Save(settingFile);
-			}
-		}
+        /// <summary>
+        /// Sets the restored status to XML.
+        /// </summary>
+        /// <param name="restoredStatus">if set to <c>true</c> [restored status].</param>
+        /// <remarks></remarks>
+        private void SetRestoredStatusToXml(bool restoredStatus)
+        {
+            if (!File.Exists(_settingFile))
+                return;
+            var xmD = new XmlDocument();
+            xmD.Load(_settingFile);
+            WriteXmlNode(xmD, "moodRestored", restoredStatus.ToString());
+            xmD.Save(_settingFile);
+        }
 
-		/// <summary>
-		/// Gets the restored status from XML.
-		/// </summary>
-		/// <returns></returns>
-		private bool getRestoredStatusFromXml()
-		{
-			if (File.Exists(settingFile))
-			{
-				XmlDocument xmD = new XmlDocument();
-				xmD.Load(settingFile);
-				return Convert.ToBoolean(readPatternFromXml(xmD, "moodRestored"));
-			}
-			return true;
-		}
+        /// <summary>
+        /// Reads the pattern from XML.
+        /// </summary>
+        /// <param name="xmlDoc">The XML doc.</param>
+        /// <param name="pattern">The pattern.</param>
+        /// <returns></returns>
+        /// <remarks></remarks>
+        private static string ReadPatternFromXml(XmlDocument xmlDoc, string pattern)
+        {
+            var node = xmlDoc.SelectSingleNode("//" + pattern);
+            return node != null ? node.InnerText : "<Artist> - <Title>";
+        }
 
-		/// <summary>
-		/// Sets the restored status to XML.
-		/// </summary>
-		/// <param name="restoredStatus">if set to <c>true</c> [restored status].</param>
-		private void setRestoredStatusToXml(bool restoredStatus)
-		{
-			if(File.Exists(settingFile))
-			{
-				XmlDocument xmD = new XmlDocument();
-				xmD.Load(settingFile);
-				writeXmlNode(xmD,"moodRestored",restoredStatus.ToString());
-				xmD.Save(settingFile);
-			}
-		}
+        /// <summary>
+        /// Reads the boolean values from XML.
+        /// </summary>
+        /// <param name="xmlDoc">The XML doc.</param>
+        /// <param name="pattern">The pattern.</param>
+        /// <returns></returns>
+        /// <remarks></remarks>
+        private static bool ReadBooleanValuesFromXml(XmlDocument xmlDoc, string pattern)
+        {
+            var node = xmlDoc.SelectSingleNode("//" + pattern);
+            return node == null || Convert.ToBoolean(node.InnerText);
+        }
 
-		private string readPatternFromXml(XmlDocument xmlDoc, string pattern)
-		{
-			XmlNode node = xmlDoc.SelectSingleNode("//" + pattern);
-			if (node != null)
-			{
-				return node.InnerText;
-			}
-			else
-			{
-				return "<Artist> - <Title>";
-			}
-		}
+        /// <summary>
+        /// Loads the settings.
+        /// </summary>
+        /// <remarks></remarks>
+        private void LoadSettings()
+        {
+            if (!File.Exists(_settingFile))
+            {
+                _nowPlayingPattern = "<Artist> - <Title>";
+                _displayNote = true;
+                _displayNowPlayingString = true;
+            }
+            else
+            {
+                var xmD = new XmlDocument();
+                xmD.Load(_settingFile);
+                _nowPlayingPattern = ReadPatternFromXml(xmD, "pattern");
+                _displayNote = ReadBooleanValuesFromXml(xmD, "displaynote");
+                _displayNowPlayingString = ReadBooleanValuesFromXml(xmD, "displayNowPlaying");
+            }
+        }
 
-		private bool readCheckBoxValuesFromXml(XmlDocument xmlDoc, string pattern)
-		{
-			XmlNode node = xmlDoc.SelectSingleNode("//" + pattern);
-			if (node != null)
-			{
-				return Convert.ToBoolean(node.InnerText);
-			}
-			else
-			{
-				return true;
-			}
-		}
+        /// <summary>
+        /// Creates the context menu.
+        /// </summary>
+        /// <remarks></remarks>
+        private void ContextMenuCreator()
+        {
+            _conmen = new ContextMenuStrip();
 
-		/// <summary>
-		/// Loads the settings.
-		/// </summary>
-		private void loadSettings()
-		{
-			if (!File.Exists(settingFile))
-			{
-				nowPlayingPattern = "<Artist> - <Title>";
-				displayNote = true;
-				displayNowPlayingString = true;
-			}
-			else
-			{
-				XmlDocument xmD = new XmlDocument();
-				xmD.Load(settingFile);
-				nowPlayingPattern = readPatternFromXml(xmD, "pattern");
-				displayNote = readCheckBoxValuesFromXml(xmD, "displaynote");
-				displayNowPlayingString = readCheckBoxValuesFromXml(xmD, "displayNowPlaying");
-			}
-		}
+            //Creation of the ToolStripMenuItems
+            var separator = new ToolStripSeparator();
+            var defaultFormat = new ToolStripMenuItem();
+            var artist = new ToolStripMenuItem();
+            var title = new ToolStripMenuItem();
+            var setNull = new ToolStripMenuItem();
+            var year = new ToolStripMenuItem();
+            var album = new ToolStripMenuItem();
+            var albumArtist = new ToolStripMenuItem();
 
-		/// <summary>
-		/// Creates the context menu.
-		/// </summary>
-		private void contextMenuCreator()
-		{
-			conmen = new ContextMenuStrip();
+            //Setting the text values of the new ToolStripMenuItems
+            setNull.Text = "Empty Field";
+            defaultFormat.Text = "Default";
+            artist.Text = "Artist";
+            albumArtist.Text = "Album Artist";
+            title.Text = "Title";
+            year.Text = "Year";
+            album.Text = "Album";
 
-			//Creation of the ToolStripMenuItems
-			ToolStripSeparator separator = new ToolStripSeparator();
-			ToolStripMenuItem defaultFormat = new ToolStripMenuItem();
-			ToolStripMenuItem artist = new ToolStripMenuItem();
-			ToolStripMenuItem title = new ToolStripMenuItem();
-			ToolStripMenuItem setNull = new ToolStripMenuItem();
-			ToolStripMenuItem year = new ToolStripMenuItem();
-			ToolStripMenuItem album = new ToolStripMenuItem();
-			ToolStripMenuItem albumArtist = new ToolStripMenuItem();
+            //Adding the MenuItems to the Context menu.
+            _conmen.Items.Add(setNull);
+            _conmen.Items.Add(separator);
+            _conmen.Items.Add(defaultFormat);
+            _conmen.Items.Add(artist);
+            _conmen.Items.Add(albumArtist);
+            _conmen.Items.Add(title);
+            _conmen.Items.Add(year);
+            _conmen.Items.Add(album);
 
-			//Setting the text values of the new ToolStripMenuItems
-			setNull.Text = "Empty Field";
-			defaultFormat.Text = "Default";
-			artist.Text = "Artist";
-			albumArtist.Text = "Album Artist";
-			title.Text = "Title";
-			year.Text = "Year";
-			album.Text = "Album";
+            //Creating the EventHandlers for the Click Event oft
+            defaultFormat.Click += DefaultFormatClicked;
+            setNull.Click += SetNullClicked;
+            artist.Click += ArtistClicked;
+            albumArtist.Click += AlbumArtistClicked;
+            title.Click += TitleClicked;
+            year.Click += YearClicked;
+            album.Click += AlbumClicked;
 
-			//Adding the MenuItems to the Context menu.
-			conmen.Items.Add(setNull);
-			conmen.Items.Add(separator);
-			conmen.Items.Add(defaultFormat);
-			conmen.Items.Add(artist);
-			conmen.Items.Add(albumArtist);
-			conmen.Items.Add(title);
-			conmen.Items.Add(year);
-			conmen.Items.Add(album);
+            _conmen.BackColor =
+                Color.FromArgb(_mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanel,
+                                                                            ElementState.ElementStateDefault,
+                                                                            ElementComponent.ComponentBackground));
+            _conmen.ForeColor =
+                Color.FromArgb(_mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanel,
+                                                                            ElementState.ElementStateDefault,
+                                                                            ElementComponent.ComponentForeground));
+        }
 
-			//Creating the EventHandlers for the Click Event oft
-			defaultFormat.Click += defaultFormat_Clicked;
-			setNull.Click += setNull_Clicked;
-			artist.Click += artist_Clicked;
-			albumArtist.Click += albumArtist_Clicked;
-			title.Click += title_Clicked;
-			year.Click += year_Clicked;
-			album.Click += album_Clicked;
+        /// <summary>
+        /// Handles the textbox text changed event and saves the settings.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void TextBoxTextChanged(object sender, EventArgs e)
+        {
+            // save the value
+            _nowPlayingPattern = _textBox.Text;
+            SaveSettings();
+        }
 
-			conmen.BackColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanel, ElementState.ElementStateDefault, ElementComponent.ComponentBackground));
-			conmen.ForeColor = Color.FromArgb(mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputPanel, ElementState.ElementStateDefault, ElementComponent.ComponentForeground));
-		}
+        // MusicBee is closing the plugin (plugin is being disabled by user or MusicBee is shutting down)
+        /// <summary>
+        /// Closes the specified reason.
+        /// </summary>
+        /// <param name="reason">The reason.</param>
+        /// <remarks></remarks>
+        public void Close(PluginCloseReason reason)
+        {
+            if (GetRestoredStatusFromXml()) return;
+            _skype.CurrentUserProfile.MoodText = GetPreviousMoodMessageFromXml();
+            SetRestoredStatusToXml(true);
+        }
 
-		#region context menu eventHandlers
+        /// <summary>
+        /// Creates the nowPlayingString by replacing the Pattern witht he values of the respective fields.
+        /// </summary>
+        /// <remarks></remarks>
+        private void GetNowPlayingTrackString()
+        {
+            _nowPlayingString = _nowPlayingPattern;
 
-		private void setNull_Clicked(object sender, EventArgs e)
-		{
-			textBox.Text = "";
-		}
+            //Get the values
+            _artist = _mbApiInterface.NowPlaying_GetFileTag(MetaDataType.Artist);
+            _title = _mbApiInterface.NowPlaying_GetFileTag(MetaDataType.TrackTitle);
+            _albumArtist = _mbApiInterface.NowPlaying_GetFileTag(MetaDataType.AlbumArtist);
+            _year = _mbApiInterface.NowPlaying_GetFileTag(MetaDataType.Year);
+            _album = _mbApiInterface.NowPlaying_GetFileTag(MetaDataType.Album);
 
-		private void artist_Clicked(object sender, EventArgs e)
-		{
-			if (textBox.SelectionLength > 0)
-			{
-				textBox.SelectedText = "<Artist>";
-			}
-			else
-			{
-				textBox.Text += "<Artist>";
-			}
-		}
+            //Regular Expressions for each supported TAG.
+            var artistExpression = new Regex("<Artist>");
+            var titleExpression = new Regex("<Title>");
+            var albumArtistExpression = new Regex("<AlbumArtist>");
+            var yearExpression = new Regex("<Year>");
+            var albumExpression = new Regex("<Album>");
 
-		private void albumArtist_Clicked(object sender, EventArgs e)
-		{
-			if (textBox.SelectionLength > 0)
-			{
-				textBox.SelectedText = "<AlbumArtist>";
-			}
-			else
-			{
-				textBox.Text += "<AlbumArtist>";
-			}
-		}
+            //Replacing each tag with the current value of the specific tag
+            _nowPlayingString = artistExpression.Replace(_nowPlayingString, _artist);
+            _nowPlayingString = titleExpression.Replace(_nowPlayingString, _title);
+            _nowPlayingString = albumArtistExpression.Replace(_nowPlayingString, _albumArtist);
+            _nowPlayingString = yearExpression.Replace(_nowPlayingString, _year);
+            _nowPlayingString = albumExpression.Replace(_nowPlayingString, _album);
+        }
 
-		private void title_Clicked(object sender, EventArgs e)
-		{
-			if (textBox.SelectionLength > 0)
-			{
-				textBox.SelectedText = "<Title>";
-			}
-			else
-			{
-				textBox.Text += "<Title>";
-			}
-		}
+        // uninstall this plugin - clean up any persisted files
+        /// <summary>
+        /// Uninstalls this instance.
+        /// </summary>
+        /// <remarks></remarks>
+        public void Uninstall()
+        {
+            if (File.Exists(_settingFile))
+            {
+                File.Delete(_settingFile);
+            }
+        }
 
-		private void year_Clicked(object sender, EventArgs e)
-		{
-			if (textBox.SelectionLength > 0)
-			{
-				textBox.SelectedText = "<Year>";
-			}
-			else
-			{
-				textBox.Text += "<Year>";
-			}
-		}
+        // receive event notifications from MusicBee
+        // only required if about.ReceiveNotificationFlags = PlayerEvents
+        /// <summary>
+        /// Receives the notification.
+        /// </summary>
+        /// <param name="sourceFileUrl">The source file URL.</param>
+        /// <param name="type">The type.</param>
+        /// <remarks></remarks>
+        public void ReceiveNotification(string sourceFileUrl, NotificationType type)
+        {
+            // perform some action depending on the notification type
+            switch (type)
+            {
+                case NotificationType.PluginStartup:
+                    break;
+                case NotificationType.TrackChanged:
+                    //if (_stopTimer.Enabled)
+                    //    _stopTimer.Enabled = false;
+                    GetNowPlayingTrackString();
+                    if (!_skypeRunning)
+                    {
+                        InitializeSkypeConnection();
+                    }
+                    if (_skypeRunning)
+                    {
+                        if (GetRestoredStatusFromXml())
+                        {
+                            SetRestoredStatusToXml(false);
+                        }
+                        _skype.CurrentUserProfile.MoodText = GetNowPlayingString();
+                    }
+                    break;
+                case NotificationType.PlayStateChanged:
+                    switch (_mbApiInterface.Player_GetPlayState())
+                    {
+                        case PlayState.Undefined:
+                            break;
+                        case PlayState.Loading:
+                            break;
+                        case PlayState.Playing:
+                            break;
+                        case PlayState.Paused:
+                            break;
+                        case PlayState.Stopped:
+                            // When the State is activated so is the _stopTimer. 
+                            //_stopTimer.Enabled = true;
+                            break;
+                    }
+                    break;
+                case NotificationType.AutoDjStarted:
+                    break;
+                case NotificationType.AutoDjStopped:
+                    break;
+                case NotificationType.VolumeMuteChanged:
+                    break;
+                case NotificationType.VolumeLevelChanged:
+                    break;
+                case NotificationType.NowPlayingListChanged:
+                    break;
+                case NotificationType.NowPlayingArtworkReady:
+                    break;
+                case NotificationType.NowPlayingLyricsReady:
+                    break;
+                case NotificationType.TagsChanged:
+                    break;
+            }
+        }
 
-		private void album_Clicked(object sender, EventArgs e)
-		{
-			if (textBox.SelectionLength > 0)
-			{
-				textBox.SelectedText = "<Album>";
-			}
-			else
-			{
-				textBox.Text += "<Album>";
-			}
-		}
+        // return an array of lyric or artwork provider names this plugin supports
+        // the providers will be iterated through one by one and passed to the RetrieveLyrics/ RetrieveArtwork function in order set by the user in the MusicBee Tags(2) preferences screen until a match is found
+        /// <summary>
+        /// Gets the providers.
+        /// </summary>
+        /// <returns></returns>
+        /// <remarks></remarks>
+        public static string[] GetProviders()
+        {
+            return null;
+        }
 
-		private void openContext_MouseClick(object sender, MouseEventArgs e)
-		{
-			contextMenuCreator();
-			conmen.Show(openContext, new Point(openContext.Width, 0));
-		}
+        // return lyrics for the requested artist/title from the requested provider
+        // only required if PluginType = LyricsRetrieval
+        // return null if no lyrics are found
+        /// <summary>
+        /// Retrieves the lyrics.
+        /// </summary>
+        /// <param name="sourceFileUrl">The source file URL.</param>
+        /// <param name="artist">The artist.</param>
+        /// <param name="trackTitle">The track title.</param>
+        /// <param name="album">The album.</param>
+        /// <param name="synchronisedPreferred">if set to <c>true</c> [synchronised preferred].</param>
+        /// <param name="provider">The provider.</param>
+        /// <returns></returns>
+        /// <remarks></remarks>
+        public static string RetrieveLyrics(string sourceFileUrl, string artist, string trackTitle, string album,
+                                            bool synchronisedPreferred, string provider)
+        {
+            return null;
+        }
 
-		private void defaultFormat_Clicked(object sender, EventArgs e)
-		{
-			textBox.Text = "<Artist> - <Title>";
-		}
+        // return Base64 string representation of the artwork binary data from the requested provider
+        // only required if PluginType = ArtworkRetrieval
+        // return null if no artwork is found
+        /// <summary>
+        /// Retrieves the artwork.
+        /// </summary>
+        /// <param name="sourceFileUrl">The source file URL.</param>
+        /// <param name="albumArtist">The album artist.</param>
+        /// <param name="album">The album.</param>
+        /// <param name="provider">The provider.</param>
+        /// <returns></returns>
+        /// <remarks></remarks>
+        public static string RetrieveArtwork(string sourceFileUrl, string albumArtist, string album, string provider)
+        {
+            //Return Convert.ToBase64String(artworkBinaryData)
+            return null;
+        }
 
-		#endregion context menu eventHandlers
+        /// <summary>
+        /// Sets the null clicked.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void SetNullClicked(object sender, EventArgs e)
+        {
+            _textBox.Text = "";
+        }
 
-		private void textBox_TextChanged(object sender, EventArgs e)
-		{
-			// save the value
-			nowPlayingPattern = textBox.Text;
-			saveSettings();
-		}
+        /// <summary>
+        /// Artists the clicked.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void ArtistClicked(object sender, EventArgs e)
+        {
+            if (_textBox.SelectionLength > 0)
+            {
+                _textBox.SelectedText = "<Artist>";
+            }
+            else
+            {
+                _textBox.Text += "<Artist>";
+            }
+        }
 
-		// MusicBee is closing the plugin (plugin is being disabled by user or MusicBee is shutting down)
-		public void Close(PluginCloseReason reason)
-		{
-			if (!getRestoredStatusFromXml())
-			{
-				skype.CurrentUserProfile.MoodText = getPreviousMoodMessageFromXml();
-				setRestoredStatusToXml(true);
-			}
-		}
+        /// <summary>
+        /// Albums the artist clicked.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void AlbumArtistClicked(object sender, EventArgs e)
+        {
+            if (_textBox.SelectionLength > 0)
+            {
+                _textBox.SelectedText = "<AlbumArtist>";
+            }
+            else
+            {
+                _textBox.Text += "<AlbumArtist>";
+            }
+        }
 
-		/// <summary>
-		/// Creates the nowPlayingString by replacing the Pattern witht he values of the respective fields.
-		/// </summary>
-		private void getNowPlayingTrackString()
-		{
-			nowPlayingString = nowPlayingPattern;
+        /// <summary>
+        /// Titles the clicked.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void TitleClicked(object sender, EventArgs e)
+        {
+            if (_textBox.SelectionLength > 0)
+            {
+                _textBox.SelectedText = "<Title>";
+            }
+            else
+            {
+                _textBox.Text += "<Title>";
+            }
+        }
 
-			//Regular Expressions for each supported TAG.
-			Regex artistExpression = new Regex("<Artist>");
-			Regex titleExpression = new Regex("<Title>");
-			Regex albumArtistExpression = new Regex("<AlbumArtist>");
-			Regex yearExpression = new Regex("<Year>");
-			Regex albumExpression = new Regex("<Album>");
+        /// <summary>
+        /// Years the clicked.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void YearClicked(object sender, EventArgs e)
+        {
+            if (_textBox.SelectionLength > 0)
+            {
+                _textBox.SelectedText = "<Year>";
+            }
+            else
+            {
+                _textBox.Text += "<Year>";
+            }
+        }
 
-			//Replacing each tag with the current value of the specific tag
-			nowPlayingString = artistExpression.Replace(nowPlayingString, artist);
-			nowPlayingString = titleExpression.Replace(nowPlayingString, title);
-			nowPlayingString = albumArtistExpression.Replace(nowPlayingString, albumArtist);
-			nowPlayingString = yearExpression.Replace(nowPlayingString, year);
-			nowPlayingString = albumExpression.Replace(nowPlayingString, album);
-		}
+        /// <summary>
+        /// Albums the clicked.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void AlbumClicked(object sender, EventArgs e)
+        {
+            if (_textBox.SelectionLength > 0)
+            {
+                _textBox.SelectedText = "<Album>";
+            }
+            else
+            {
+                _textBox.Text += "<Album>";
+            }
+        }
 
-		// uninstall this plugin - clean up any persisted files
-		public void Uninstall()
-		{
-			if (File.Exists(settingFile))
-			{
-				File.Delete(settingFile);
-			}
-		}
+        /// <summary>
+        /// Opens the context mouse click.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.Windows.Forms.MouseEventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void OpenContextMouseClick(object sender, MouseEventArgs e)
+        {
+            ContextMenuCreator();
+            _conmen.Show(_openContext, new Point(_openContext.Width, 0));
+        }
 
-		// receive event notifications from MusicBee
-		// only required if about.ReceiveNotificationFlags = PlayerEvents
-		public void ReceiveNotification(string sourceFileUrl, NotificationType type)
-		{
-			// perform some action depending on the notification type
-			switch (type)
-			{
-				case NotificationType.PluginStartup:
-					// perform startup initialisation
-					break;
-				case NotificationType.TrackChanged:
-
-					//Get the values
-					artist = mbApiInterface.NowPlaying_GetFileTag(MetaDataType.Artist);
-					title = mbApiInterface.NowPlaying_GetFileTag(MetaDataType.TrackTitle);
-					albumArtist = mbApiInterface.NowPlaying_GetFileTag(MetaDataType.AlbumArtist);
-					year = mbApiInterface.NowPlaying_GetFileTag(MetaDataType.Year);
-					album = mbApiInterface.NowPlaying_GetFileTag(MetaDataType.Album);
-
-					getNowPlayingTrackString();
-
-					if (skypeRunning)
-					{
-						if (getRestoredStatusFromXml())
-						{
-							setRestoredStatusToXml(false);
-						}
-						skype.CurrentUserProfile.MoodText = getNowPlayingString();
-					}
-					else
-					{
-						initializeSkypeConnection();
-						if (skypeRunning)
-						{
-							if (getRestoredStatusFromXml())
-							{
-								setRestoredStatusToXml(false);
-							}
-							skype.CurrentUserProfile.MoodText = getNowPlayingString();
-						}
-					}
-
-					break;
-				case NotificationType.PlayStateChanged:
-					switch (mbApiInterface.Player_GetPlayState())
-					{
-						case PlayState.Stopped:
-							if (skypeRunning)
-							{
-								if (!getRestoredStatusFromXml())
-								{
-									skype.CurrentUserProfile.MoodText = getPreviousMoodMessageFromXml();
-									setRestoredStatusToXml(true);
-								}
-							}
-							break;
-						case PlayState.Playing:
-							if (skypeRunning)
-							{
-								if (getRestoredStatusFromXml())
-								{
-									setRestoredStatusToXml(false);
-								}
-								skype.CurrentUserProfile.MoodText = getNowPlayingString();
-							}
-							break;
-					}
-					break;
-			}
-		}
-
-		// return an array of lyric or artwork provider names this plugin supports
-		// the providers will be iterated through one by one and passed to the RetrieveLyrics/ RetrieveArtwork function in order set by the user in the MusicBee Tags(2) preferences screen until a match is found
-		public string[] GetProviders()
-		{
-			return null;
-		}
-
-		// return lyrics for the requested artist/title from the requested provider
-		// only required if PluginType = LyricsRetrieval
-		// return null if no lyrics are found
-		public string RetrieveLyrics(string sourceFileUrl, string artist, string trackTitle, string album, bool synchronisedPreferred, string provider)
-		{
-			return null;
-		}
-
-		// return Base64 string representation of the artwork binary data from the requested provider
-		// only required if PluginType = ArtworkRetrieval
-		// return null if no artwork is found
-		public string RetrieveArtwork(string sourceFileUrl, string albumArtist, string album, string provider)
-		{
-			//Return Convert.ToBase64String(artworkBinaryData)
-			return null;
-		}
-	}
+        /// <summary>
+        /// Defaults the format clicked.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
+        /// <remarks></remarks>
+        private void DefaultFormatClicked(object sender, EventArgs e)
+        {
+            _textBox.Text = "<Artist> - <Title>";
+        }
+        private void RestoreDefaultMessage()
+        {
+            if (!_skypeRunning) return;
+            if (GetRestoredStatusFromXml()) return;
+            _skype.CurrentUserProfile.MoodText = GetPreviousMoodMessageFromXml();
+            SetRestoredStatusToXml(true);
+        }
+    }
 }
