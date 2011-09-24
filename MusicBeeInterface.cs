@@ -103,7 +103,7 @@ namespace MusicBeePlugin
             public int ConfigurationPanelHeight;
         }
 
-        [Flags()]
+        [Flags]
         public enum ReceiveNotificationFlags
         {
             PlayerEvents = 0x1,

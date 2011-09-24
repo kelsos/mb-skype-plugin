@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using System.Xml;
 using SKYPE4COMLib;
+using Timer = System.Timers.Timer;
 
 namespace MusicBeePlugin
 {
@@ -18,83 +19,86 @@ namespace MusicBeePlugin
     public partial class Plugin
     {
         /// <summary>
-        /// 
+        /// A constant UNICODE Character that represents a musicnote.
         /// </summary>
         private const char Musicnote = '\u266B';
-        //True if Skype is Running.
         /// <summary>
-        /// 
+        /// Repressents the Skype Running Status.
         /// </summary>
         private static bool _skypeRunning;
         /// <summary>
-        /// 
+        /// Represents the plugin info.
         /// </summary>
         private readonly PluginInfo _about = new PluginInfo();
         /// <summary>
-        /// 
+        /// Represents the album tag information.
         /// </summary>
         private string _album;
         /// <summary>
-        /// 
+        /// Represents the album artist tag information.
         /// </summary>
         private string _albumArtist;
         /// <summary>
-        /// 
+        /// Represents the artist tag information.
         /// </summary>
         private string _artist;
         /// <summary>
-        /// 
+        /// Represents the configuration panel.
         /// </summary>
         private Panel _configPanel;
         /// <summary>
-        /// 
+        /// Represents the Context Menu that appears whent he Configuration panel button is pressed.
         /// </summary>
         private ContextMenuStrip _conmen;
-        //The nowPlayingPattern & The string that will get displaying the mood box of Skype.
         /// <summary>
-        /// 
+        /// Represents the Selection to display the musicnote in front of the track information. True means display, False means don't display.
         /// </summary>
         private bool _displayNote;
         /// <summary>
-        /// 
+        /// Represent the Selection to display the "Now Playing:" String in front of the track information. True means display, and false means don't display.
         /// </summary>
         private bool _displayNowPlayingString;
         /// <summary>
-        /// 
+        /// Represents an instance of the MusicBee API interface.
         /// </summary>
         private MusicBeeApiInterface _mbApiInterface;
         /// <summary>
-        /// 
+        /// Represents the user specified Now Playing pattern.
         /// </summary>
         private string _nowPlayingPattern;
         /// <summary>
-        /// 
+        /// Represents the Now Playing String tha will be finally passed to Skype's User Mood.
         /// </summary>
         private string _nowPlayingString;
         /// <summary>
-        /// 
+        /// Represents the configuration panel button that opens the context menu.
         /// </summary>
         private SquareButton _openContext;
         /// <summary>
-        /// 
+        /// Represents the settings file location.
         /// </summary>
         private string _settingFile;
         /// <summary>
-        /// 
+        /// Represents the Skype Class Instance.
         /// </summary>
         private SkypeClass _skype;
         /// <summary>
-        /// 
+        /// Represents the Text Box where the user inserts the Now Playing pattern.
         /// </summary>
         private TextBox _textBox;
         /// <summary>
-        /// 
+        /// Represents the song title tag information.
         /// </summary>
         private string _title;
         /// <summary>
-        /// 
+        /// Represents the album release Year tag information.
         /// </summary>
         private string _year;
+
+        /// <summary>
+        /// Represents the timer that prevents the stop message from appearing in case of track change.
+        /// </summary>
+        private static Timer _timer;
 
         /// <summary>
         /// Gets the running processes and checks if Skype is running.
@@ -166,9 +170,8 @@ namespace MusicBeePlugin
             //Persistent Settings are saved in mb_skypenp.ini file in the application settings folder.
             LoadSettings(); //Loading the saved pattern.
             //Stop timer initialization at 5 seconds. The timer is disabled at start.
-            //_stopTimer.Interval = 5000;
-            //_stopTimer.Enabled = false;
-            //_stopTimer.Tick += StopTimerTick;
+            _timer = new Timer {Interval = 5000, Enabled = false};
+            _timer.Elapsed += StopTimerElapse;
             return _about;
         }
 
@@ -179,10 +182,10 @@ namespace MusicBeePlugin
         /// <param name="sender">The sender.</param>
         /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
         /// <remarks></remarks>
-        private void StopTimerTick(object sender, EventArgs e)
+        private void StopTimerElapse(object sender, EventArgs e)
         {
             RestoreDefaultMessage();
-            //_stopTimer.Enabled = false;
+            _timer.Enabled = false;
         }
 
         /// <summary>
@@ -589,9 +592,7 @@ namespace MusicBeePlugin
         /// <remarks></remarks>
         public void Close(PluginCloseReason reason)
         {
-            if (GetRestoredStatusFromXml()) return;
-            _skype.CurrentUserProfile.MoodText = GetPreviousMoodMessageFromXml();
-            SetRestoredStatusToXml(true);
+            RestoreDefaultMessage();
         }
 
         /// <summary>
@@ -653,8 +654,8 @@ namespace MusicBeePlugin
                 case NotificationType.PluginStartup:
                     break;
                 case NotificationType.TrackChanged:
-                    //if (_stopTimer.Enabled)
-                    //    _stopTimer.Enabled = false;
+                    if (_timer.Enabled)
+                        _timer.Enabled = false;
                     GetNowPlayingTrackString();
                     if (!_skypeRunning)
                     {
@@ -682,7 +683,7 @@ namespace MusicBeePlugin
                             break;
                         case PlayState.Stopped:
                             // When the State is activated so is the _stopTimer. 
-                            //_stopTimer.Enabled = true;
+                            _timer.Enabled = true;
                             break;
                     }
                     break;
