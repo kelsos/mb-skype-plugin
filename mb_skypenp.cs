@@ -18,6 +18,7 @@ namespace MusicBeePlugin
     /// <remarks></remarks>
     public partial class Plugin
     {
+        private SquareButton _skypeStatusCheckButton;
         /// <summary>
         /// A constant UNICODE Character that represents a musicnote.
         /// </summary>
@@ -110,9 +111,11 @@ namespace MusicBeePlugin
             {
                 if (!(clsProcess.ProcessName.Contains("skype") || clsProcess.ProcessName.Contains("Skype") ||
                     clsProcess.ProcessName.Contains("SKYPE"))) continue;
-                _skypeRunning = true;
-                break;
+                    _skypeRunning = true;
+                return;
             }
+            _skypeRunning = false;
+
         }
 
         /// <summary>
@@ -146,7 +149,7 @@ namespace MusicBeePlugin
         public PluginInfo Initialise(IntPtr apiInterfacePtr)
         {
             _mbApiInterface =
-                (MusicBeeApiInterface) Marshal.PtrToStructure(apiInterfacePtr, typeof (MusicBeeApiInterface));
+                (MusicBeeApiInterface)Marshal.PtrToStructure(apiInterfacePtr, typeof(MusicBeeApiInterface));
             var v = Assembly.GetExecutingAssembly().GetName().Version;
             _skypeRunning = false;
             _displayNote = true;
@@ -156,7 +159,7 @@ namespace MusicBeePlugin
             _about.Description = "Changes the skype mood to the currently playing track";
             _about.Author = "Kelsos";
             _about.TargetApplication = "Skype";
-                // current only applies to artwork, lyrics or instant messenger name that appears in the provider drop down selector or target Instant Messenger
+            // current only applies to artwork, lyrics or instant messenger name that appears in the provider drop down selector or target Instant Messenger
             _about.Type = PluginType.General;
             _about.VersionMajor = Convert.ToInt16(v.Major); // your plugin version
             _about.VersionMinor = Convert.ToInt16(v.Minor);
@@ -170,7 +173,7 @@ namespace MusicBeePlugin
             //Persistent Settings are saved in mb_skypenp.ini file in the application settings folder.
             LoadSettings(); //Loading the saved pattern.
             //Stop timer initialization at 5 seconds. The timer is disabled at start.
-            _timer = new Timer {Interval = 5000, Enabled = false};
+            _timer = new Timer { Interval = 5000, Enabled = false };
             _timer.Elapsed += StopTimerElapse;
             return _about;
         }
@@ -228,106 +231,137 @@ namespace MusicBeePlugin
         {
             // panelHandle will only be set if you set about.ConfigurationPanelHeight to a non-zero value
             // keep in mind the panel width is scaled according to the font the user has selected
+            ToolTip tpOpenContext;
+            ToolTip tpSkypeButton;
+            Label patternBoxLabel;
+            CheckBox nowPlayingCheck;
+            CheckBox noteDisplayCheck;
             if (panelHandle != IntPtr.Zero)
             {
-                using (var tp = new ToolTip())
-                {
-                    _textBox = new TextBox();
-                    _configPanel = (Panel) Control.FromHandle(panelHandle);
+                _configPanel = (Panel)Control.FromHandle(panelHandle);
+                tpOpenContext = new ToolTip();
+                tpSkypeButton = new ToolTip();
+                _textBox = new TextBox();
 
-                    //Label
-                    using (
-                        var patternBoxLabel = new Label
-                                                  {
-                                                      Bounds = new Rectangle(0, 0, _configPanel.Width, 22),
-                                                      Text = "The pattern to be displayed:"
-                                                  })
-                    {
-                        tp.SetToolTip(_textBox,
-                                      "Tag indentifiers that can be used are: <Artist>, <AlbumArtist>, <Title>, <Year> and <Album>");
-                        //Text Box
-                        _textBox.Text = _nowPlayingPattern;
-                        _textBox.Bounds = new Rectangle(0, patternBoxLabel.Height + 2, _configPanel.Width,
-                                                        _textBox.Height);
-                        _textBox.BackColor =
-                            Color.FromArgb(_mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl,
-                                                                                        ElementState.ElementStateDefault,
-                                                                                        ElementComponent.
-                                                                                            ComponentBackground));
-                        _textBox.ForeColor =
-                            Color.FromArgb(_mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl,
-                                                                                        ElementState.ElementStateDefault,
-                                                                                        ElementComponent.
-                                                                                            ComponentForeground));
-                        _textBox.BorderStyle = BorderStyle.FixedSingle;
-                        _textBox.HideSelection = false;
-                        //Button Creation
-                        _openContext = new SquareButton
-                                           {
-                                               Bounds =
-                                                   new Rectangle(_textBox.Right - (_textBox.Height + 1), 2,
-                                                                 _textBox.Height - 1,
-                                                                 _textBox.Height - 1),
-                                               ButtonColor =
-                                                   Color.FromArgb(
-                                                       _mbApiInterface.Setting_GetSkinElementColour(
-                                                           SkinElement.SkinInputPanelLabel,
-                                                           ElementState.ElementStateDefault,
-                                                           ElementComponent.ComponentBackground)),
-                                               FontColor =
-                                                   Color.FromArgb(
-                                                       _mbApiInterface.Setting_GetSkinElementColour(
-                                                           SkinElement.SkinInputControl,
-                                                           ElementState.ElementStateDefault,
-                                                           ElementComponent.ComponentBackground)),
-                                               Parent = _textBox
-                                           };
-                        _openContext.BringToFront();
-                        _openContext.TextAlign = ContentAlignment.MiddleCenter;
-                        _openContext.Text = "...";
-                        _textBox.Controls.Add(_openContext);
-                        //CheckBox for "Now Playing" Display
-                        using (var nowPlayingCheck = new CheckBox())
-                        {
-                            nowPlayingCheck.Bounds = new Rectangle(0, _textBox.Bottom + 2, _configPanel.Right,
-                                                                   nowPlayingCheck.Height);
-                            nowPlayingCheck.Text = "Display \"Now Playing:\" text in front of the pattern";
-                            nowPlayingCheck.Checked = _displayNowPlayingString;
-                            nowPlayingCheck.FlatStyle = FlatStyle.Flat;
-                            nowPlayingCheck.AutoSize = true;
-                            //CheckBox for \u266B Unicode Character Display
-                            using (
-                                var noteDisplayCheck = new CheckBox
+                tpOpenContext.SetToolTip(_textBox,
+                              "Tag indentifiers that can be used are: <Artist>, <AlbumArtist>, <Title>, <Year> and <Album>");
+
+                patternBoxLabel = new Label
+                                      {
+                                          Bounds = new Rectangle(0, 0, _configPanel.Width, 22),
+                                          Text = "The pattern to be displayed:"
+                                      };
+                nowPlayingCheck = new CheckBox
+                                      {
+                                          Bounds = new Rectangle(0,
+                                                                 _textBox.Bottom + 30,
+                                                                 _configPanel.Right,
+                                                                 _textBox.Height),
+                                          Checked = _displayNowPlayingString,
+                                          Text = "Display \"Now Playing:\" text in front of the pattern",
+                                          FlatStyle = FlatStyle.Flat,
+                                          AutoSize = true
+                                      };
+                noteDisplayCheck = new CheckBox
+                                       {
+                                           Bounds =
+                                               new Rectangle(0, nowPlayingCheck.Bottom, _configPanel.Right,
+                                                             nowPlayingCheck.Height),
+                                           Text =
+                                               String.Format("Display {0} char infront of \"Now Playing:\"", Musicnote),
+                                           Checked = _displayNote,
+                                           FlatStyle = FlatStyle.Flat,
+                                           AutoSize = true
+                                       };
+
+
+                //Text Box
+                _textBox.Text = _nowPlayingPattern;
+                _textBox.Bounds = new Rectangle(0, patternBoxLabel.Height + 2, _configPanel.Width,
+                                                _textBox.Height);
+                _textBox.BackColor =
+                    Color.FromArgb(_mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl,
+                                                                                ElementState.ElementStateDefault,
+                                                                                ElementComponent.
+                                                                                    ComponentBackground));
+                _textBox.ForeColor =
+                    Color.FromArgb(_mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl,
+                                                                                ElementState.ElementStateDefault,
+                                                                                ElementComponent.
+                                                                                    ComponentForeground));
+                _textBox.BorderStyle = BorderStyle.FixedSingle;
+                _textBox.HideSelection = false;
+                //Button Creation
+                _openContext = new SquareButton
+                                   {
+                                       Bounds =
+                                           new Rectangle(_textBox.Right - (_textBox.Height + 1), 2,
+                                                         _textBox.Height - 1,
+                                                         _textBox.Height - 1),
+                                       ButtonColor =
+                                           Color.FromArgb(
+                                               _mbApiInterface.Setting_GetSkinElementColour(
+                                                   SkinElement.SkinInputPanelLabel,
+                                                   ElementState.ElementStateDefault,
+                                                   ElementComponent.ComponentBackground)),
+                                       FontColor =
+                                           Color.FromArgb(
+                                               _mbApiInterface.Setting_GetSkinElementColour(
+                                                   SkinElement.SkinInputControl,
+                                                   ElementState.ElementStateDefault,
+                                                   ElementComponent.ComponentBackground)),
+                                       Parent = _textBox
+                                   };
+                _openContext.BringToFront();
+                _openContext.TextAlign = ContentAlignment.MiddleCenter;
+                _openContext.Text = "...";
+                _textBox.Controls.Add(_openContext);
+                //About Button
+                _skypeStatusCheckButton = new SquareButton
+                                  {
+                                      Bounds =
+                                          new Rectangle(_configPanel.Width - (_textBox.Height + 10), noteDisplayCheck.Top,
+                                                        _textBox.Height + 10,
+                                                        _textBox.Height - 1),
+                                      FontColor =
+                                          Color.FromArgb(
+                                              _mbApiInterface.Setting_GetSkinElementColour(
+                                                  SkinElement.SkinInputControl,
+                                                  ElementState.ElementStateDefault,
+                                                  ElementComponent.ComponentBackground)),
+                                      Parent = _textBox
+                                  };
+                ButtonColorChanger();
+                _skypeStatusCheckButton.BringToFront();
+                _skypeStatusCheckButton.TextAlign = ContentAlignment.MiddleCenter;
+
+                tpSkypeButton.SetToolTip(_skypeStatusCheckButton,"If the Button is green the plugin communicates with skype,\nIf the button is red either Skype is closed or there was an issue communicating with it.\nOn press the button checks if Skype is Running, in order to make the connection.");
+
+
+                _configPanel.Controls.AddRange(new Control[]
                                                            {
-                                                               Bounds =
-                                                                   new Rectangle(0, nowPlayingCheck.Bottom,
-                                                                                 _configPanel.Right,
-                                                                                 nowPlayingCheck.Height),
-                                                               Text =
-                                                                   String.Format(
-                                                                       "Display {0} char infront of \"Now Playing:\"",
-                                                                       Musicnote),
-                                                               Checked = _displayNote,
-                                                               FlatStyle = FlatStyle.Flat,
-                                                               AutoSize = true
-                                                           })
-                            {
-                                _configPanel.Controls.AddRange(new Control[]
-                                                                   {
-                                                                       patternBoxLabel, _textBox, nowPlayingCheck,
-                                                                       noteDisplayCheck
-                                                                   });
-                                //EventHandlers Created.
-                                _openContext.MouseClick += OpenContextMouseClick;
-                                _textBox.TextChanged += TextBoxTextChanged;
-                                nowPlayingCheck.CheckedChanged += NowPlayingCheckChanged;
-                                noteDisplayCheck.CheckedChanged += NoteDisplayCheckChanged;
-                            }
-                        }
-                    }
-                }
+                                                               patternBoxLabel, _textBox, nowPlayingCheck,
+                                                               noteDisplayCheck, _skypeStatusCheckButton
+                                                           });
+                //EventHandlers Created.
+                _openContext.MouseClick += OpenContextMouseClick;
+                _textBox.TextChanged += TextBoxTextChanged;
+                nowPlayingCheck.CheckedChanged += NowPlayingCheckChanged;
+                noteDisplayCheck.CheckedChanged += NoteDisplayCheckChanged;
+                _skypeStatusCheckButton.MouseClick += SkypeStatusCheckButtonMouseClick;
             }
             return false;
+        }
+
+        private void SkypeStatusCheckButtonMouseClick(object sender, MouseEventArgs e)
+        {
+            CheckIfRunning();
+            ButtonColorChanger();
+        }
+        private void ButtonColorChanger()
+        {
+            _skypeStatusCheckButton.ButtonColor = _skypeRunning ? Color.Green : Color.Red;
+            _skypeStatusCheckButton.Text = _skypeRunning ? "OK" : "OFF";
         }
 
         /// <summary>
