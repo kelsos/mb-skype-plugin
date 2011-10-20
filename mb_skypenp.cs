@@ -18,6 +18,7 @@ namespace MusicBeePlugin
     /// <remarks></remarks>
     public partial class Plugin
     {
+        private bool _isInitialized;
         private SquareButton _skypeStatusCheckButton;
         /// <summary>
         /// A constant UNICODE Character that represents a musicnote.
@@ -203,6 +204,7 @@ namespace MusicBeePlugin
                 if (_skypeRunning)
                 {
                     _skype = new SkypeClass(); //Skype Class object is used to access the Skype.
+                    _isInitialized = true;
                     if (!GetRestoredStatusFromXml())
                     {
                         _skype.CurrentUserProfile.MoodText = GetPreviousMoodMessageFromXml();
@@ -217,7 +219,9 @@ namespace MusicBeePlugin
             }
             catch
             {
+                _isInitialized = false;
                 _skypeRunning = false;
+                //MessageBox.Show(ex.ToString());//Debug Option
             }
         }
 
@@ -355,13 +359,13 @@ namespace MusicBeePlugin
 
         private void SkypeStatusCheckButtonMouseClick(object sender, MouseEventArgs e)
         {
-            CheckIfRunning();
+            InitializeSkypeConnection();
             ButtonColorChanger();
         }
         private void ButtonColorChanger()
         {
-            _skypeStatusCheckButton.ButtonColor = _skypeRunning ? Color.Green : Color.Red;
-            _skypeStatusCheckButton.Text = _skypeRunning ? "OK" : "OFF";
+            _skypeStatusCheckButton.ButtonColor = _isInitialized ? Color.Green : Color.Red;
+            _skypeStatusCheckButton.Text = _isInitialized ? "OK" : "OFF";
         }
 
         /// <summary>
@@ -400,7 +404,7 @@ namespace MusicBeePlugin
             XmlNode node = xmlDoc.SelectSingleNode("//" + nodeName);
             if (node == null)
             {
-                var pattern = xmlDoc.CreateElement(nodeName);
+                XmlElement pattern = xmlDoc.CreateElement(nodeName);
                 XmlNode root = xmlDoc.DocumentElement;
                 pattern.InnerText = value;
                 if (root != null) root.AppendChild(pattern);
@@ -419,18 +423,18 @@ namespace MusicBeePlugin
         {
             if (!File.Exists(_settingFile))
             {
-                var xmNew = new XmlDocument();
+                XmlDocument xmNew = new XmlDocument();
 
                 //Writing the XML Declaration
-                var xmlDec = xmNew.CreateXmlDeclaration("1.0", "utf-8", "yes");
+                XmlDeclaration xmlDec = xmNew.CreateXmlDeclaration("1.0", "utf-8", "yes");
 
                 //Creating the root element
-                var rootNode = xmNew.CreateElement("Settings");
+                XmlElement rootNode = xmNew.CreateElement("Settings");
                 xmNew.InsertBefore(xmlDec, xmNew.DocumentElement);
                 xmNew.AppendChild(rootNode);
                 xmNew.Save(_settingFile);
             }
-            var xmD = new XmlDocument();
+            XmlDocument xmD = new XmlDocument();
             xmD.Load(_settingFile);
             WriteXmlNode(xmD, "pattern", _nowPlayingPattern);
             WriteXmlNode(xmD, "displaynote", _displayNote.ToString());
@@ -447,7 +451,7 @@ namespace MusicBeePlugin
         {
             if (File.Exists(_settingFile))
             {
-                var xmD = new XmlDocument();
+                XmlDocument xmD = new XmlDocument();
                 xmD.Load(_settingFile);
                 return ReadPatternFromXml(xmD, "previousMoodMessage");
             }
@@ -462,7 +466,7 @@ namespace MusicBeePlugin
         private void SetPreviousMessageToXml(string previousMoodMessage)
         {
             if (!File.Exists(_settingFile)) return;
-            var xmD = new XmlDocument();
+            XmlDocument xmD = new XmlDocument();
             xmD.Load(_settingFile);
             WriteXmlNode(xmD, "previousMoodMessage", previousMoodMessage);
             xmD.Save(_settingFile);
@@ -477,7 +481,7 @@ namespace MusicBeePlugin
         {
             if (File.Exists(_settingFile))
             {
-                var xmD = new XmlDocument();
+                XmlDocument xmD = new XmlDocument();
                 xmD.Load(_settingFile);
 
 
@@ -495,7 +499,7 @@ namespace MusicBeePlugin
         {
             if (!File.Exists(_settingFile))
                 return;
-            var xmD = new XmlDocument();
+            XmlDocument xmD = new XmlDocument();
             xmD.Load(_settingFile);
             WriteXmlNode(xmD, "moodRestored", restoredStatus.ToString());
             xmD.Save(_settingFile);
@@ -541,7 +545,7 @@ namespace MusicBeePlugin
             }
             else
             {
-                var xmD = new XmlDocument();
+                XmlDocument xmD = new XmlDocument();
                 xmD.Load(_settingFile);
                 _nowPlayingPattern = ReadPatternFromXml(xmD, "pattern");
                 _displayNote = ReadBooleanValuesFromXml(xmD, "displaynote");
@@ -558,14 +562,14 @@ namespace MusicBeePlugin
             _conmen = new ContextMenuStrip();
 
             //Creation of the ToolStripMenuItems
-            var separator = new ToolStripSeparator();
-            var defaultFormat = new ToolStripMenuItem();
-            var artist = new ToolStripMenuItem();
-            var title = new ToolStripMenuItem();
-            var setNull = new ToolStripMenuItem();
-            var year = new ToolStripMenuItem();
-            var album = new ToolStripMenuItem();
-            var albumArtist = new ToolStripMenuItem();
+            ToolStripSeparator separator = new ToolStripSeparator();
+            ToolStripMenuItem defaultFormat = new ToolStripMenuItem();
+            ToolStripMenuItem artist = new ToolStripMenuItem();
+            ToolStripMenuItem title = new ToolStripMenuItem();
+            ToolStripMenuItem setNull = new ToolStripMenuItem();
+            ToolStripMenuItem year = new ToolStripMenuItem();
+            ToolStripMenuItem album = new ToolStripMenuItem();
+            ToolStripMenuItem albumArtist = new ToolStripMenuItem();
 
             //Setting the text values of the new ToolStripMenuItems
             setNull.Text = "Empty Field";
@@ -645,11 +649,11 @@ namespace MusicBeePlugin
             _album = _mbApiInterface.NowPlaying_GetFileTag(MetaDataType.Album);
 
             //Regular Expressions for each supported TAG.
-            var artistExpression = new Regex("<Artist>");
-            var titleExpression = new Regex("<Title>");
-            var albumArtistExpression = new Regex("<AlbumArtist>");
-            var yearExpression = new Regex("<Year>");
-            var albumExpression = new Regex("<Album>");
+            Regex artistExpression = new Regex("<Artist>");
+            Regex titleExpression = new Regex("<Title>");
+            Regex albumArtistExpression = new Regex("<AlbumArtist>");
+            Regex yearExpression = new Regex("<Year>");
+            Regex albumExpression = new Regex("<Album>");
 
             //Replacing each tag with the current value of the specific tag
             _nowPlayingString = artistExpression.Replace(_nowPlayingString, _artist);

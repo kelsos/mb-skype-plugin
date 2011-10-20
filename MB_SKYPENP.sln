@@ -28,6 +28,7 @@ Global
 		BuildVersion_AssemblyInfoFilename = Properties\AssemblyInfo.cs
 		BuildVersion_UpdateFileVersion = True
 		BuildVersion_UpdateAssemblyVersion = True
+		BuildVersion_UseGlobalSettings = True
 	EndGlobalSection
 	GlobalSection(SubversionScc) = preSolution
 		Svn-Managed = True
