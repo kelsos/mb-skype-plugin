@@ -6,8 +6,8 @@ namespace MusicBeePlugin
     public partial class Plugin
     {
         public const short PluginInfoVersion = 1;
-        public const short MinInterfaceVersion = 5;
-        public const short MinApiRevision = 8;
+        public const short MinInterfaceVersion = 2;
+        public const short MinApiRevision = 4;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct MusicBeeApiInterface
@@ -72,14 +72,6 @@ namespace MusicBeePlugin
             public Library_QueryGetNextFileDelegate Playlist_QueryGetNextFile;
             public MB_WindowHandleDelegate MB_GetWindowHandle;
             public MB_RefreshPanelsDelegate MB_RefreshPanels;
-            public MB_SendNotificationDelegate MB_SendNotification;
-            public MB_AddMenuItemDelegate MB_AddMenuItem;
-            public Setting_GetFieldNameDelegate Setting_GetFieldName;
-            public Library_QueryGetAllFilesDelegate Library_QueryGetAllFiles;
-            public Library_QueryGetAllFilesDelegate NowPlayingList_QueryGetAllFiles;
-            public Library_QueryGetAllFilesDelegate Playlist_QueryGetAllFiles;
-            public MB_CreateBackgroundTaskDelegate MB_CreateBackgroundTask;
-            public MB_SetBackgroundTaskMessageDelegate MB_SetBackgroundTaskMessage;
         }
 
         public enum PluginType
@@ -90,8 +82,7 @@ namespace MusicBeePlugin
             ArtworkRetrieval = 3,
             PanelView = 4,
             DataStream = 5,
-            InstantMessenger = 6,
-            Storage = 7
+            InstantMessenger = 6
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -112,13 +103,11 @@ namespace MusicBeePlugin
             public int ConfigurationPanelHeight;
         }
 
-        [Flags()]
+        [Flags]
         public enum ReceiveNotificationFlags
         {
-            StartupOnly = 0x0,
             PlayerEvents = 0x1,
-            DataStreamEvents = 0x2,
-            TagEvents = 0x04
+            DataStreamEvents = 0x2
         }
 
         public enum NotificationType
@@ -133,10 +122,7 @@ namespace MusicBeePlugin
             NowPlayingListChanged = 7,
             NowPlayingArtworkReady = 8,
             NowPlayingLyricsReady = 9,
-            TagsChanging = 10,
-            TagsChanged = 11,
-            RatingChanged = 12,
-            PlayCountersChanged = 13
+            TagsChanged = 10
         }
 
         public enum PluginCloseReason
@@ -145,19 +131,8 @@ namespace MusicBeePlugin
             UserDisabled = 2
         }
 
-        public enum CallbackType
-        {
-            SettingsUpdated = 1,
-            StorageReady = 2,
-            StorageFailed = 3,
-            FilesRetrievedChanged = 4,
-            FilesRetrievedNoChange = 5,
-            FilesRetrievedFail = 6
-        }
-
         public enum FilePropertyType
         {
-            Url = 2,
             Kind = 4,
             Format = 5,
             Size = 7,
@@ -169,7 +144,6 @@ namespace MusicBeePlugin
             LastPlayed = 13,
             PlayCount = 14,
             SkipCount = 15,
-            Duration = 16,
             ReplayGainTrack = 94,
             ReplayGainAlbum = 95
         }
@@ -180,12 +154,9 @@ namespace MusicBeePlugin
             Album = 30,
             AlbumArtist = 31,        // displayed album artist
             AlbumArtistRaw = 34,     // stored album artist
-            Artist = 32,             // displayed artist
-            MultiArtist = 33,        // individual artists, separated by a null char
-            Artwork = 40,
+            Artist = 32,
             BeatsPerMin = 41,
-            Composer = 43,           // displayed composer
-            MultiComposer = 89,      // individual composers, separated by a null char
+            Composer = 43,
             Comment = 44,
             Conductor = 45,
             Custom1 = 46,
@@ -204,7 +175,6 @@ namespace MusicBeePlugin
             GenreCategory = 60,
             Grouping = 61,
             Keywords = 84,
-            HasLyrics = 63,
             Lyricist = 62,
             Mood = 64,
             Occasion = 66,
@@ -217,9 +187,6 @@ namespace MusicBeePlugin
             Tempo = 85,
             TrackNo = 86,
             TrackCount = 87,
-            Virtual1 = 109,
-            Virtual2 = 110,
-            Virtual3 = 111,
             Year = 88
         }
 
@@ -282,11 +249,6 @@ namespace MusicBeePlugin
         public delegate void MB_TraceDelegate(string p1);
         public delegate IntPtr MB_WindowHandleDelegate();
         public delegate void MB_RefreshPanelsDelegate();
-        public delegate void MB_SendNotificationDelegate(CallbackType type);
-        public delegate void MB_AddMenuItemDelegate(string menuPath, string hotkeyDescription, EventHandler handler);
-        public delegate void MB_CreateBackgroundTaskDelegate(System.Threading.ThreadStart taskCallback, System.Windows.Forms.Form owner);
-        public delegate void MB_SetBackgroundTaskMessageDelegate(string message);
-        public delegate string Setting_GetFieldNameDelegate(MetaDataType type);
         public delegate string Setting_GetPersistentStoragePathDelegate();
         public delegate string Setting_GetSkinDelegate();
         public delegate int Setting_GetSkinElementColourDelegate(SkinElement element, ElementState state, ElementComponent component);
@@ -299,7 +261,6 @@ namespace MusicBeePlugin
         public delegate string Library_GetArtworkDelegate(string sourceFileUrl, int index);
         public delegate bool Library_QueryFilesDelegate(string query);
         public delegate string Library_QueryGetNextFileDelegate();
-        public delegate string Library_QueryGetAllFilesDelegate();
         public delegate int Player_GetPositionDelegate();
         public delegate bool Player_SetPositionDelegate(int position);
         public delegate PlayState Player_GetPlayStateDelegate();
