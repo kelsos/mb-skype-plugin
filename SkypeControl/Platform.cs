@@ -33,9 +33,9 @@ namespace MusicBeePlugin.SkypeControl
         [StructLayout(LayoutKind.Sequential)]
         public struct CopyDataStruct
         {
-            public string ID;
+            public UInt32 ID;
             public int Length;
-            public string Data;
+            public IntPtr Data;
         }
     }
 }

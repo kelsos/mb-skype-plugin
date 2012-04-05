@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using MusicBeePlugin.Events;
@@ -97,14 +99,21 @@ namespace MusicBeePlugin.SkypeControl
 
         private bool SendMessage(string messageData)
         {
-            Platform.CopyDataStruct aCDS = new Platform.CopyDataStruct {ID = "1", Data = messageData};
+            Platform.CopyDataStruct aCDS = new Platform.CopyDataStruct {ID = 1};
 
-            aCDS.Length = aCDS.Data.Length + 1;
+            messageData += '\0';
+            byte[] data = Encoding.UTF8.GetBytes(messageData);
+            IntPtr buffer = Marshal.AllocCoTaskMem(data.Length);
+            Marshal.Copy(data, 0, buffer, data.Length);
+            aCDS.Data = buffer;
+            aCDS.Length = data.Length;
 
             IntPtr result;
             IntPtr aRetVal = Platform.SendMessageTimeout(_mySkypeHandle, Platform.WM_COPYDATA, Handle,
                                                          ref aCDS,
                                                          Platform.SendMessageTimeoutFlags.SMTO_NORMAL, 100, out result);
+
+            Marshal.FreeCoTaskMem(buffer);
 
             return (aRetVal != IntPtr.Zero);
         }
@@ -133,7 +142,12 @@ namespace MusicBeePlugin.SkypeControl
                 {
                     Platform.CopyDataStruct aCDS =
                         (Platform.CopyDataStruct) m.GetLParam(typeof (Platform.CopyDataStruct));
-                    string aResponse = aCDS.Data;
+
+                    byte[] data = new byte[aCDS.Length - 1];//The last byte is 0; bad text formatting if copied to data!
+                    Marshal.Copy(aCDS.Data, data, 0, aCDS.Length - 1);
+                    // Causes access violation shit.
+                    //Marshal.FreeCoTaskMem(aCDS.Data);
+                    string aResponse = Encoding.UTF8.GetString(data);
 
                     EventDispatcher.Instance.OnSkypeResponse(new SkypeResponseEventArgs(aResponse));
 
