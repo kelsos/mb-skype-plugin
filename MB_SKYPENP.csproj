@@ -58,6 +58,7 @@
     <PlatformTarget>x86</PlatformTarget>
     <OutputPath>C:\Users\kelsos\Desktop\MusicBee\Plugins\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <RegisterForComInterop>true</RegisterForComInterop>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
     <PlatformTarget>x86</PlatformTarget>
@@ -72,15 +73,19 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Data\TrackInfo.cs" />
+    <Compile Include="Events\EventDispatcher.cs" />
+    <Compile Include="Events\MessageEventArgs.cs" />
     <Compile Include="MusicBeeInterface.cs" />
     <Compile Include="mb_skypenp.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SettingsManager.cs" />
-    <Compile Include="SkypeControl\ApiFilter.cs" />
     <Compile Include="SkypeControl\Common.cs" />
     <Compile Include="SkypeControl\Platform.cs" />
-    <Compile Include="SkypeControl\SkypeClient.cs" />
+    <Compile Include="SkypeControl\SkypeConnector.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="SkypeControl\SkypeCommunicationAdapter.cs" />
+    <Compile Include="SkypeControl\Messages.cs" />
     <Compile Include="UserSettingsPanel.cs" />
   </ItemGroup>
   <ItemGroup>

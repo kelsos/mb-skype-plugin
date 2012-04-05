@@ -8,14 +8,26 @@ namespace MusicBeePlugin
     class SettingsManager
     {
         private string _nowPlayingPattern;
+        private bool _displayNowPlayingString;
+        private static string _settingsFile;
+        private static string _peristentStoragePath;
+
+        public string PersistentStorage
+        {
+            set { _peristentStoragePath = value; }
+        }
+        
         public string NowPlayingPattern
         {
             get { return _nowPlayingPattern; }
             set { _nowPlayingPattern = value; }
         }
-        private bool _displayNowPlayingString;
 
-        private static string _settingsFile;
+        public bool DisplayNowPlayingString
+        {
+            get { return _displayNowPlayingString; } 
+            set { _displayNowPlayingString = value; }
+        }
 
         /// <summary>
         /// Writes an XML node.

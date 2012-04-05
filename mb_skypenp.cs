@@ -1,12 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Drawing;
-using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
-using System.Windows.Forms;
 using MusicBeePlugin.Data;
 using MusicBeePlugin.SkypeControl;
 using Timer = System.Timers.Timer;
@@ -140,7 +135,8 @@ namespace MusicBeePlugin
                     if (_timer.Enabled)
                         _timer.Enabled = false;
                     UpdateTrackInfo();
-                    SkypeCommunicationAdapter.GetInstance().SendMessage("SET PROFILE MOOD_TEXT " + _trackInfo.GetNowPlayingTrackString());
+                    SkypeCommunicationAdapter.GetInstance().Connect();
+                    SkypeCommunicationAdapter.GetInstance().SendMessage(Messages.SetMood + _trackInfo.GetNowPlayingTrackString());
 
                     break;
                 case NotificationType.PlayStateChanged:
