@@ -8,10 +8,6 @@ using Timer = System.Timers.Timer;
 
 namespace MusicBeePlugin
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <remarks></remarks>
     public partial class Plugin
     {
         private TrackInfo _trackInfo;
@@ -36,7 +32,7 @@ namespace MusicBeePlugin
         public PluginInfo Initialise(IntPtr apiInterfacePtr)
         {
             _mbApiInterface = (MusicBeeApiInterface) Marshal.PtrToStructure(apiInterfacePtr, typeof (MusicBeeApiInterface));
-            var v = Assembly.GetExecutingAssembly().GetName().Version;
+            Version v = Assembly.GetExecutingAssembly().GetName().Version;
             //_displayNowPlayingString = true;
             _about.PluginInfoVersion = PluginInfoVersion;
             _about.Name = "Skype: Now Playing";
@@ -52,10 +48,10 @@ namespace MusicBeePlugin
             _about.MinApiRevision = MinApiRevision;
             _about.ReceiveNotifications = ReceiveNotificationFlags.PlayerEvents;
             _about.ConfigurationPanelHeight = 100; //Height of the panel.
-           // _settingFile = _mbApiInterface.Setting_GetPersistentStoragePath() + "mb_skypenp.ini";
 
-            //Persistent Settings are saved in mb_skypenp.ini file in the application settings folder.
-            //LoadSettings(); //Loading the saved pattern.
+            SettingsManager.PersistentStorage = _mbApiInterface.Setting_GetPersistentStoragePath();
+            SettingsManager.LoadSettings();
+
             //Stop timer initialization at 5 seconds. The timer is disabled at start.
             _timer = new Timer {Interval = 5000, Enabled = false};
             _timer.Elapsed += StopTimerElapse;
@@ -77,7 +73,12 @@ namespace MusicBeePlugin
             _timer.Enabled = false;
         }
 
-
+        // called by MusicBee when the user clicks Apply or Save in the MusicBee Preferences screen.
+        // its up to you to figure out whether anything has changed and needs updating
+        public void SaveSettings()
+        {
+            SettingsManager.SaveSettings();
+        }
 
         /// <summary>
         /// Configures the specified panel handle.
@@ -91,8 +92,8 @@ namespace MusicBeePlugin
                                                                                ElementComponent. ComponentBackground);
             int foreColor = _mbApiInterface.Setting_GetSkinElementColour(SkinElement.SkinInputControl, ElementState.ElementStateDefault,
                                                                                ElementComponent. ComponentForeground);
-            //return UserSettingsPanel.CreatePanel(panelHandle,backColor,foreColor);
-            return true;
+            UserSettingsPanel panel = new UserSettingsPanel();
+            return panel.CreatePanel(panelHandle,backColor,foreColor);
         }
 
         // MusicBee is closing the plugin (plugin is being disabled by user or MusicBee is shutting down)
@@ -129,48 +130,39 @@ namespace MusicBeePlugin
             // perform some action depending on the notification type
             switch (type)
             {
-                case NotificationType.PluginStartup:
-                    break;
                 case NotificationType.TrackChanged:
-                    if (_timer.Enabled)
-                        _timer.Enabled = false;
-                    UpdateTrackInfo();
-                    SkypeCommunicationAdapter.GetInstance().Connect();
-                    SkypeCommunicationAdapter.GetInstance().SendMessage(Messages.SetMood + _trackInfo.GetNowPlayingTrackString());
-
+                    HandleTrackChanged();
                     break;
                 case NotificationType.PlayStateChanged:
-                    switch (_mbApiInterface.Player_GetPlayState())
-                    {
-                        case PlayState.Undefined:
-                            break;
-                        case PlayState.Loading:
-                            break;
-                        case PlayState.Playing:
-                            break;
-                        case PlayState.Paused:
-                            break;
-                        case PlayState.Stopped:
-                            // When the State is activated so is the _stopTimer. 
-                            _timer.Enabled = true;
-                            break;
-                    }
+                    HandlePlayStateChanged();
                     break;
-                case NotificationType.AutoDjStarted:
+            }
+        }
+
+        private void HandleTrackChanged()
+        {
+            if (_timer.Enabled)
+                _timer.Enabled = false;
+            UpdateTrackInfo();
+            SkypeCommunicationAdapter.GetInstance().Connect();
+            SkypeCommunicationAdapter.GetInstance().SendMessage(Messages.SetMood + _trackInfo.GetNowPlayingTrackString());
+        }
+
+        private void HandlePlayStateChanged()
+        {
+            switch (_mbApiInterface.Player_GetPlayState())
+            {
+                case PlayState.Undefined:
                     break;
-                case NotificationType.AutoDjStopped:
+                case PlayState.Loading:
                     break;
-                case NotificationType.VolumeMuteChanged:
+                case PlayState.Playing:
                     break;
-                case NotificationType.VolumeLevelChanged:
+                case PlayState.Paused:
                     break;
-                case NotificationType.NowPlayingListChanged:
-                    break;
-                case NotificationType.NowPlayingArtworkReady:
-                    break;
-                case NotificationType.NowPlayingLyricsReady:
-                    break;
-                case NotificationType.TagsChanged:
+                case PlayState.Stopped:
+                    // When the State is activated so is the _stopTimer. 
+                    _timer.Enabled = true;
                     break;
             }
         }
@@ -245,6 +237,9 @@ namespace MusicBeePlugin
 
         private void UpdateTrackInfo()
         {
+
+            _trackInfo.DisplayNowPlayingString = SettingsManager.DisplayNowPlayingString;
+            _trackInfo.NowPlayingPattern = SettingsManager.NowPlayingPattern;
             //Get the values
             _trackInfo.Artist = _mbApiInterface.NowPlaying_GetFileTag(MetaDataType.Artist);
             _trackInfo.Title = _mbApiInterface.NowPlaying_GetFileTag(MetaDataType.TrackTitle);

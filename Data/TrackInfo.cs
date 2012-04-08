@@ -18,7 +18,7 @@ namespace MusicBeePlugin.Data
         ///     /// <summary>
         /// Represents the Now Playing String tha will be finally passed to Skype's User Mood.
         /// </summary>
-        private string _nowPlayingString;
+        private string _nowPlayingPattern;
 
         /// <summary>
         /// Represents the song title tag information.
@@ -38,24 +38,26 @@ namespace MusicBeePlugin.Data
         ///     /// <summary>
         /// Represents the Now Playing String tha will be finally passed to Skype's User Mood.
         /// </summary>
-        public string NowPlayingString
+        public string NowPlayingPattern
         {
-            get { return _nowPlayingString; }
-            set { _nowPlayingString = value; }
+            set { _nowPlayingPattern = value; }
+        }
+
+        public bool DisplayNowPlayingString
+        {
+            set { _displayNowPlayingString = value; }
         }
 
         private bool _displayNowPlayingString;
-        private string GetNowPlayingString()
-        {
-            return _displayNowPlayingString == false ? _nowPlayingString : String.Format("Now Playing: {0}", _nowPlayingString);
-        }
+
         /// <summary>
         /// Creates the nowPlayingString by replacing the Pattern witht he values of the respective fields.
         /// </summary>
         /// <remarks></remarks>
         public string GetNowPlayingTrackString()
         {
-            _nowPlayingString = "<Artist> - <Title>";
+            string nowPlayingString = _displayNowPlayingString == false ? _nowPlayingPattern : String.Format("Now Playing: {0}", _nowPlayingPattern);
+        
 
             //Regular Expressions for each supported TAG.
             Regex artistExpression = new Regex("<Artist>");
@@ -65,13 +67,13 @@ namespace MusicBeePlugin.Data
             Regex albumExpression = new Regex("<Album>");
 
             //Replacing each tag with the current value of the specific tag
-            _nowPlayingString = artistExpression.Replace(_nowPlayingString, Artist);
-            _nowPlayingString = titleExpression.Replace(_nowPlayingString, Title);
-            _nowPlayingString = albumArtistExpression.Replace(_nowPlayingString, AlbumArtist);
-            _nowPlayingString = yearExpression.Replace(_nowPlayingString, Year);
-            _nowPlayingString = albumExpression.Replace(_nowPlayingString, Album);
+            nowPlayingString = artistExpression.Replace(nowPlayingString, Artist);
+            nowPlayingString = titleExpression.Replace(nowPlayingString, Title);
+            nowPlayingString = albumArtistExpression.Replace(nowPlayingString, AlbumArtist);
+            nowPlayingString = yearExpression.Replace(nowPlayingString, Year);
+            nowPlayingString = albumExpression.Replace(nowPlayingString, Album);
 
-            return _nowPlayingString;
+            return nowPlayingString;
         }
 
     }
