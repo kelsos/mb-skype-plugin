@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Globalization;
 using System.Text.RegularExpressions;
+using Microsoft.SqlServer.Server;
 
 namespace MusicBeePlugin.Data
 {
     class TrackInfo
     {
+        private string duration;
         /// <summary>
         /// Represents the album artist tag information.
         /// </summary>
@@ -35,6 +38,16 @@ namespace MusicBeePlugin.Data
         /// </summary>
         public string Album { get; set; }
 
+        public int Duration
+        {
+            set
+            {
+
+                TimeSpan span = TimeSpan.FromMilliseconds(value);
+                duration = String.Format("{0}:{1:00}", span.Minutes, span.Seconds);
+            }
+        }
+
         ///     /// <summary>
         /// Represents the Now Playing String tha will be finally passed to Skype's User Mood.
         /// </summary>
@@ -58,13 +71,13 @@ namespace MusicBeePlugin.Data
         {
             string nowPlayingString = _displayNowPlayingString == false ? _nowPlayingPattern : String.Format("Now Playing: {0}", _nowPlayingPattern);
         
-
             //Regular Expressions for each supported TAG.
             Regex artistExpression = new Regex("<Artist>");
             Regex titleExpression = new Regex("<Title>");
             Regex albumArtistExpression = new Regex("<AlbumArtist>");
             Regex yearExpression = new Regex("<Year>");
             Regex albumExpression = new Regex("<Album>");
+            Regex durationExpression = new Regex("<Duration>");
 
             //Replacing each tag with the current value of the specific tag
             nowPlayingString = artistExpression.Replace(nowPlayingString, Artist);
@@ -72,6 +85,7 @@ namespace MusicBeePlugin.Data
             nowPlayingString = albumArtistExpression.Replace(nowPlayingString, AlbumArtist);
             nowPlayingString = yearExpression.Replace(nowPlayingString, Year);
             nowPlayingString = albumExpression.Replace(nowPlayingString, Album);
+            nowPlayingString = durationExpression.Replace(nowPlayingString, duration);
 
             return nowPlayingString;
         }

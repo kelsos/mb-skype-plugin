@@ -25,7 +25,7 @@ namespace MusicBeePlugin
                 _textBox = new TextBox();
 
                 tpOpenContext.SetToolTip(_textBox,
-                                         "Tag indentifiers that can be used are: <Artist>, <AlbumArtist>, <Title>, <Year> and <Album>");
+                                         "Tag indentifiers that can be used are: <Artist>, <AlbumArtist>, <Title>, <Year>, <Album> and <Duration>");
 
                 Label patternBoxLabel = new Label
                                             {
