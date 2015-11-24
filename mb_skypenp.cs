@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using MusicBeePlugin.Data;
 using MusicBeePlugin.SkypeControl;
 using Timer = System.Timers.Timer;
+using System.ComponentModel;
 
 namespace MusicBeePlugin
 {
@@ -36,7 +37,7 @@ namespace MusicBeePlugin
         public PluginInfo Initialise(IntPtr apiInterfacePtr)
         {
             mbApiInterface =
-                (MusicBeeApiInterface) Marshal.PtrToStructure(apiInterfacePtr, typeof (MusicBeeApiInterface));
+                (MusicBeeApiInterface)Marshal.PtrToStructure(apiInterfacePtr, typeof(MusicBeeApiInterface));
             Version v = Assembly.GetExecutingAssembly().GetName().Version;
             about.PluginInfoVersion = PluginInfoVersion;
             about.Name = "Skype: Now Playing";
@@ -57,7 +58,7 @@ namespace MusicBeePlugin
             SettingsManager.LoadSettings();
 
             //Stop timer initialization at 5 seconds. The timer is disabled at start.
-            timer = new Timer {Interval = 2000, Enabled = false};
+            timer = new Timer { Interval = 2000, Enabled = false };
             timer.Elapsed += StopTimerElapse;
             info = new TrackInfo();
             StartSkypeProxy();
@@ -150,8 +151,14 @@ namespace MusicBeePlugin
             if (timer.Enabled)
                 timer.Enabled = false;
             UpdateTrackInfo();
-            SkypeCommunicationAdapter.GetInstance().Connect();
-            SkypeCommunicationAdapter.GetInstance().SendMessage(Messages.SetMood + info.GetNowPlayingTrackString());
+
+            BackgroundWorker b = new BackgroundWorker();
+            b.DoWork += new DoWorkEventHandler(delegate (object s, DoWorkEventArgs ar)
+            {
+                SkypeCommunicationAdapter.GetInstance().Connect();
+                SkypeCommunicationAdapter.GetInstance().SendMessage(Messages.SetMood + info.GetNowPlayingTrackString());
+            });
+            b.RunWorkerAsync();
         }
 
         private void HandlePlayStateChanged()
@@ -175,6 +182,7 @@ namespace MusicBeePlugin
 
         private void StartSkypeProxy()
         {
+            //I made this on a backgroundworker, but it seems to cause some issues.
             SkypeCommunicationAdapter.GetInstance().SkypeAttach += Plugin_SkypeAttach;
             SkypeCommunicationAdapter.GetInstance().SkypeResponse += Plugin_SkypeResponse;
             SkypeCommunicationAdapter.GetInstance().Connect();
