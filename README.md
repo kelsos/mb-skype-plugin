@@ -1,5 +1,7 @@
-Skype Now Playing (Plugin for MusicBee)
+[Abandoned] Skype Now Playing (Plugin for MusicBee)
 =======================
+This project is probably not functioning anymore and is not in any way actively developed or maintained.
+
 
 This is a small plugin to update the Skype mood with the track currently playing in MusicBee.
 
